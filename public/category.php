@@ -29,12 +29,12 @@ $rows = $stmt->fetchAll();
 $accent = (string)$category['accent_img'];
 ?>
 
-<div class="article-page-wrap">
+<div style="padding-top: 20px; padding-bottom: 80px;">
   <div class="container">
     
-    <div style="text-align: center; margin: 40px auto 70px; max-width: 800px;">
-      <p class="article-hero__meta" style="margin-bottom: 20px;">
-        <a href="/" style="text-decoration:none; color: var(--gold);">← Retour à l'accueil</a>
+    <div style="text-align: center; margin: 20px auto 70px; max-width: 800px;">
+      <p style="margin-bottom: 30px;">
+        <a href="/" style="text-decoration:none; color: var(--gold); font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.85rem; transition: color 0.2s;">← Retour à l'accueil</a>
       </p>
       <h1 style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(3rem, 5vw, 4rem); color: #111; margin-bottom: 20px;">
         <?= e((string)$category['label']) ?>

@@ -1,3 +1,6 @@
+/* =========================================
+   BASES & VARIABLES
+========================================= */
 * { box-sizing: border-box; }
 
 :root {
@@ -11,6 +14,7 @@
   --gold-2: #d7b88a;
   --line: rgba(128, 96, 51, 0.25);
   --card: rgba(255, 252, 246, 0.93);
+  --glass: rgba(255, 255, 255, 0.82);
 }
 
 body {
@@ -41,56 +45,61 @@ body::before {
 
 .container { width: min(1100px, 92%); margin: 0 auto; }
 
+/* =========================================
+   HEADER & NAVIGATION
+========================================= */
 header.site-header {
-  position: sticky; top: 0; z-index: 50; backdrop-filter: blur(9px);
-  background: rgba(248, 240, 227, 0.85); padding: 16px 0;
-  margin-bottom: 26px; border-bottom: 1px solid var(--line);
-  box-shadow: 0 10px 26px rgba(89, 62, 28, 0.07);
+  position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  background: rgba(248, 240, 227, 0.85); padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgba(89, 62, 28, 0.05);
 }
 
-.site-header a { color: #3a2d1d; text-decoration: none; margin-right: 14px; transition: color 0.2s ease; }
-.site-header a:hover { color: #8c6739; }
+.site-header a { color: #3a2d1d; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 20px; transition: color 0.2s; }
+.site-header a:hover { color: var(--gold); }
 
+/* =========================================
+   COMPOSANTS UI (BOUTONS, CARTES, FORM)
+========================================= */
 .card {
   background: var(--card); border: 1px solid var(--line);
-  border-radius: 16px; padding: 18px; margin-bottom: 16px;
-  box-shadow: 0 14px 30px rgba(104, 74, 38, 0.1);
+  border-radius: 16px; padding: 25px; margin-bottom: 20px;
+  box-shadow: 0 14px 35px rgba(104, 74, 38, 0.08);
 }
 
-h1, h2, h3 { margin-top: 0; color: #2f2417; letter-spacing: 0.2px; }
+h1, h2, h3 { margin-top: 0; color: #2f2417; letter-spacing: 0.2px; font-family: "Cormorant Garamond", Georgia, serif; }
 a { color: #7d5a2f; } a:hover { color: #aa7a43; }
 .meta { color: var(--muted); font-size: 0.92rem; }
 
 .btn {
-  display: inline-block; border: 0; border-radius: 10px; padding: 10px 14px;
+  display: inline-block; border: 0; border-radius: 8px; padding: 12px 20px;
   background: linear-gradient(135deg, var(--gold), var(--gold-2));
-  color: #2a2014; font-weight: 600; text-decoration: none; cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.2s ease;
+  color: #fff; font-weight: 600; text-decoration: none; cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
-.btn:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(184, 147, 95, 0.28); }
+.btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(184, 147, 95, 0.3); }
 .btn.secondary { background: linear-gradient(135deg, #d4c6b2, #c2af94); color: #2f2417; }
 .btn.danger { background: linear-gradient(135deg, #d48b7e, #b76053); color: #fff; }
 
 input, textarea, select {
-  width: 100%; padding: 10px; border-radius: 9px; border: 1px solid rgba(148, 110, 62, 0.28);
-  background: rgba(255, 251, 244, 0.95); color: #332618; margin-top: 6px; margin-bottom: 12px;
+  width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(148, 110, 62, 0.2);
+  background: #fff; margin-top: 8px; margin-bottom: 15px;
 }
-input:focus, textarea:focus, select:focus { outline: 2px solid rgba(184, 147, 95, 0.33); border-color: rgba(184, 147, 95, 0.62); }
-label { font-weight: 600; color: #44311d; }
 
-.flash { padding: 10px 12px; border-radius: 8px; margin-bottom: 10px; }
-.flash.success { background: rgba(119, 170, 119, 0.18); color: #2f5f35; border: 1px solid rgba(95, 146, 95, 0.35); }
-.flash.error { background: rgba(194, 110, 98, 0.16); color: #7d2f28; border: 1px solid rgba(179, 93, 80, 0.35); }
+.flash { padding: 12px; border-radius: 8px; margin-bottom: 15px; font-weight: 500; }
+.flash.success { background: rgba(119, 170, 119, 0.15); color: #2f5f35; border: 1px solid #77aa77; }
+.flash.error { background: rgba(194, 110, 98, 0.15); color: #7d2f28; border: 1px solid #c26e62; }
 
-.article-content img { max-width: 100%; height: auto; border-radius: 10px; border: 1px solid rgba(168, 131, 83, 0.35); }
 .top-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .body--home { font-family: "Source Sans 3", "Segoe UI", Arial, sans-serif; }
 .home-main { width: 100%; padding-bottom: 48px; }
 .home-main > .flash { max-width: 1200px; margin-left: auto; margin-right: auto; padding: 0 4%; }
-
 .ftg-inner { width: min(1200px, 92%); margin: 0 auto; }
 
+/* =========================================
+   ACCUEIL - HERO (Restauration)
+========================================= */
 .ftg-hero { position: relative; padding: 56px 0 40px; overflow: hidden; }
 .ftg-hero__bg { position: absolute; inset: 0; background: radial-gradient(circle at 12% 20%, rgba(255, 255, 255, 0.55), transparent 42%), linear-gradient(120deg, #f9f3ea 0%, #efe4d4 45%, #e8dcc8 100%); z-index: 0; }
 .ftg-hero__grid { position: relative; z-index: 1; display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: center; }
@@ -103,12 +112,11 @@ label { font-weight: 600; color: #44311d; }
 .ftg-hero__figure { margin: 0; position: relative; filter: drop-shadow(0 28px 45px rgba(62, 44, 22, 0.22)); }
 .ftg-hero__jet { display: block; width: min(100%, 520px); height: auto; animation: jetFloat 7s ease-in-out infinite; }
 
-@keyframes jetFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
-}
+@keyframes jetFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 
-/* --- DESIGN FORBES (Catégories) --- */
+/* =========================================
+   ACCUEIL - CATEGORIES & BANNIÈRE
+========================================= */
 .forbes-banner { 
     position: relative; 
     width: 100%; 
@@ -118,9 +126,10 @@ label { font-weight: 600; color: #44311d; }
     display: flex; 
     align-items: center; 
     justify-content: center;
-    margin-bottom: 0; /* Plus d'espace sur PC */
+    margin-bottom: 0;
 }
 .forbes-banner__box { background: rgba(84, 84, 105, 0.88); color: white; padding: 35px 70px; text-align: center; font-family: "Cormorant Garamond", Georgia, serif; font-size: 2.8rem; font-weight: 500; }
+
 .forbes-split { display: flex; width: 100%; min-height: 450px; background: #fff; }
 .forbes-split > div { flex: 1; }
 .forbes-split__img { background-size: cover; background-position: center; position: relative; }
@@ -137,9 +146,9 @@ label { font-weight: 600; color: #44311d; }
     border: 2px solid #111;
     margin: 40px 30px; 
     background: #fff !important;
-    transition: box-shadow 0.3s;
+    transition: box-shadow 0.4s ease, transform 0.4s ease; 
 }
-.forbes-split__text:hover { box-shadow: 0 10px 30px rgba(0,0,0,0.06); }
+.forbes-split__text:hover { box-shadow: 0 15px 40px rgba(0,0,0,0.08); transform: scale(1.003); }
 .forbes-split__text-kicker { font-size: 0.65rem; letter-spacing: 0.35em; text-transform: uppercase; color: #a3a3a3; margin: 0 0 15px; }
 .forbes-split__text-title { font-family: "Cormorant Garamond", Georgia, serif; font-size: 2.6rem; color: #111; margin: 0 0 20px; }
 .forbes-split__text-desc { color: #888; line-height: 1.7; font-size: 0.95rem; margin: 0; }
@@ -153,7 +162,109 @@ label { font-weight: 600; color: #44311d; }
 }
 .edit-pencil:hover { background: #fff; transform: scale(1.15); }
 
-/* --- ADAPTATION MOBILE --- */
+/* =========================================
+   LISTE DES ARTICLES (PAGE CATEGORIE)
+========================================= */
+.ftg-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 40px; margin-top: 50px; margin-bottom: 70px;
+}
+
+.ftg-card {
+  background: #fff; border: 1px solid rgba(184, 147, 95, 0.2); border-radius: 12px; overflow: hidden;
+  display: flex; flex-direction: column; transition: transform 0.4s ease, box-shadow 0.4s ease;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+}
+.ftg-card:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(104, 74, 38, 0.1); }
+
+.ftg-card__media { width: 100%; aspect-ratio: 16 / 9; overflow: hidden; position: relative; }
+.ftg-card__media img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.7s ease; }
+.ftg-card:hover .ftg-card__media img { transform: scale(1.06); }
+
+.ftg-card__body { padding: 25px; display: flex; flex-direction: column; flex-grow: 1; }
+.ftg-card__cat { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--gold); margin: 0 0 12px; font-weight: 600; }
+.ftg-card__title { font-family: "Cormorant Garamond", Georgia, serif; font-size: 1.6rem; color: #111; margin: 0 0 15px; line-height: 1.25; }
+.ftg-card__excerpt { font-size: 0.95rem; color: #666; line-height: 1.6; margin: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* =========================================
+   PAGE ARTICLE (LAYOUT LUXE + GLASSMORPHISM)
+========================================= */
+.article-page-wrap {
+    display: grid;
+    grid-template-columns: 100%;
+    padding-bottom: 80px;
+    margin-top: 15px;
+}
+
+/* Image de couverture */
+.article-cover {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%; 
+    height: 60vh;
+    max-height: 650px;
+    min-height: 400px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    z-index: 1;
+}
+
+.article-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block; 
+}
+
+/* Bloc blanc (Hero) collé au bas et étendu sur toute la largeur */
+.article-hero {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end; 
+    width: 100%; 
+    margin-bottom: 0; 
+    z-index: 10;
+    
+    padding: 45px 60px;
+    
+    background: var(--glass);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    
+    border-radius: 0 0 12px 12px; 
+    border-top: 1px solid rgba(255,255,255,0.7);
+    text-align: left;
+}
+
+.article-hero__title {
+    font-size: clamp(2.4rem, 4.5vw, 4rem);
+    line-height: 1.15;
+    margin: 15px 0 20px;
+    color: #111;
+}
+
+/* Contenu de l'article */
+.article-body {
+    grid-column: 1;
+    grid-row: 2; 
+    width: min(800px, 92%);
+    justify-self: center;
+    margin-top: 60px; 
+    font-size: 1.15rem;
+    line-height: 1.8;
+    color: #333;
+    z-index: 2;
+}
+
+.article-content p { margin-bottom: 1.8em; }
+.article-content h2 { font-size: 2.2rem; margin: 2em 0 1em; color: #111; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+.article-content img { max-width: 100%; height: auto; border-radius: 10px; border: 1px solid rgba(168, 131, 83, 0.35); }
+
+/* =========================================
+   RESPONSIVE (ACCUEIL & ARTICLES)
+========================================= */
 @media (max-width: 960px) {
   .ftg-hero__grid { grid-template-columns: 1fr; }
   .ftg-hero__visual { justify-content: center; }
@@ -162,28 +273,16 @@ label { font-weight: 600; color: #44311d; }
   .forbes-split--reverse { flex-direction: column; }
   .forbes-split__img { min-height: 350px; }
   
-  .forbes-split__text { 
-    margin: 20px; 
-    padding: 40px 8%; 
-    border-width: 2px;
-  }
+  .forbes-split__text { margin: 20px; padding: 40px 8%; border-width: 2px; }
   
-  /* SÉPARATION ENTRE LES CATÉGORIES ET LA BANNIÈRE SUR TÉLÉPHONE */
-  .category-block, .forbes-banner {
-    margin-bottom: 25px;
-    border-bottom: 3px solid #979587;
-    padding-bottom: 25px;
-  }
-  
-  .category-block:last-child {
-    margin-bottom: 0;
-    border-bottom: none;
-    padding-bottom: 0;
-  }
+  .category-block, .forbes-banner { margin-bottom: 25px; border-bottom: 3px solid #979587; padding-bottom: 25px; }
+  .category-block:last-child { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
+  .forbes-banner { border-bottom: 25px solid #f0e7d7; box-shadow: 0 3px 0 0 #979587; margin-bottom: 25px; }
+}
 
-  .forbes-banner {
-    border-bottom: 25px solid #f0e7d7;
-    box-shadow: 0 3px 0 0 #979587;
-    margin-bottom: 25px;
-  }
+@media (max-width: 768px) {
+    .article-cover { border-radius: 0; height: 45vh; min-height: 350px; }
+    .article-hero { border-radius: 0; padding: 35px 25px; }
+    .article-hero__title { font-size: 2.2rem; }
+    .article-body { margin-top: 40px; }
 }
