@@ -1,0 +1,3 @@
+/data/app.sqlite
+/public/uploads/*
+!/public/uploads/.gitkeep
