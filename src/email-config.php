@@ -31,10 +31,10 @@ declare(strict_types=1);
 // define('SMTP_PASS', 'votre-mot-de-passe');
 // define('SMTP_FROM', 'noreply@votre-domaine.com');
 
-// Configuration par défaut (OVH - à adapter)
+// Configuration par défaut (Gmail avec port 465 SMTPS pour WAMP)
 if (!defined('SMTP_HOST')) {
     define('SMTP_HOST', 'smtp.gmail.com');
-    define('SMTP_PORT', 587);
+    define('SMTP_PORT', 465);  // Port SMTPS (SSL direct) au lieu de 587 pour compatibilité WAMP
     define('SMTP_USER', 'site.aeroclub.buhl@gmail.com');
     define('SMTP_PASS', 'rgjqospeloqywsol'); // À modifier
     define('SMTP_FROM', 'site.aeroclub.buhl@gmail.com');
