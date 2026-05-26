@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
 function secure_session_start(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) {
@@ -345,9 +348,6 @@ function send_email(string $to, string $subject, string $htmlBody, string $fromN
     require_once __DIR__ . '/../phpmailer/src/Exception.php';
     require_once __DIR__ . '/../phpmailer/src/PHPMailer.php';
     require_once __DIR__ . '/../phpmailer/src/SMTP.php';
-    
-    use PHPMailer\PHPMailer\PHPMailer;
-    use PHPMailer\PHPMailer\Exception;
     
     try {
         $mail = new PHPMailer(true);
