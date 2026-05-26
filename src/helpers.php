@@ -319,6 +319,123 @@ function validate_uploaded_image(array $file): ?string
     if (!is_string($tmp) || $tmp === '' || !is_uploaded_file($tmp)) return null;
     $size = (int)($file['size'] ?? 0);
     if ($size <= 0 || $size > 10 * 1024 * 1024) return null;
+}
+
+/**
+ * Envoie un email via SMTP
+ * @return bool true si succès, false sinon
+ */
+function send_email(string $to, string $subject, string $htmlBody, string $fromName = ''): bool
+{
+    require_once __DIR__ . '/email-config.php';
+    
+    // Vérifier que la configuration SMTP est complète
+    if (!defined('SMTP_HOST') || !defined('SMTP_USER') || !defined('SMTP_PASS')) {
+        error_log("Email config incomplete: SMTP_HOST, SMTP_USER, or SMTP_PASS not defined");
+        return false;
+    }
+    
+    // Valider l'email destinataire
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        error_log("Invalid recipient email: $to");
+        return false;
+    }
+    
+    try {
+        // Créer la connexion SMTP avec PHP sockets
+        $smtp = @fsockopen(SMTP_HOST, SMTP_PORT, $errno, $errstr, 10);
+        
+        if (!$smtp) {
+            error_log("SMTP Connection failed: $errstr ($errno)");
+            return false;
+        }
+        
+        // Fonction pour lire la réponse SMTP
+        $response = fgets($smtp, 1024);
+        if (strpos($response, '220') === false) {
+            error_log("SMTP Server error: $response");
+            fclose($smtp);
+            return false;
+        }
+        
+        // Envoyer les commandes SMTP
+        $commands = [
+            "EHLO localhost\r\n",
+            "STARTTLS\r\n",
+        ];
+        
+        foreach ($commands as $cmd) {
+            fwrite($smtp, $cmd);
+            $response = fgets($smtp, 1024);
+        }
+        
+        // Créer un contexte SSL/TLS
+        $context = stream_context_create(['ssl' => ['allow_self_signed' => true, 'verify_peer' => false]]);
+        stream_context_set_option($smtp, ['ssl' => ['allow_self_signed' => true, 'verify_peer' => false]]);
+        
+        if (!stream_socket_enable_crypto($smtp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+            error_log("STARTTLS failed");
+            fclose($smtp);
+            return false;
+        }
+        
+        fgets($smtp, 1024); // Réponse à STARTTLS
+        
+        // Authentification
+        fwrite($smtp, "AUTH LOGIN\r\n");
+        fgets($smtp, 1024);
+        
+        fwrite($smtp, base64_encode(SMTP_USER) . "\r\n");
+        fgets($smtp, 1024);
+        
+        fwrite($smtp, base64_encode(SMTP_PASS) . "\r\n");
+        $response = fgets($smtp, 1024);
+        
+        if (strpos($response, '235') === false) {
+            error_log("SMTP Authentication failed: $response");
+            fclose($smtp);
+            return false;
+        }
+        
+        // Envoyer le mail
+        fwrite($smtp, "MAIL FROM: <" . SMTP_FROM . ">\r\n");
+        fgets($smtp, 1024);
+        
+        fwrite($smtp, "RCPT TO: <$to>\r\n");
+        fgets($smtp, 1024);
+        
+        fwrite($smtp, "DATA\r\n");
+        fgets($smtp, 1024);
+        
+        // Construire les headers et le body
+        $headers = "From: " . (!empty($fromName) ? $fromName . " <" . SMTP_FROM . ">" : SMTP_FROM) . "\r\n";
+        $headers .= "To: $to\r\n";
+        $headers .= "Subject: $subject\r\n";
+        $headers .= "MIME-Version: 1.0\r\n";
+        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $headers .= "Content-Transfer-Encoding: 8bit\r\n";
+        
+        $message = $headers . "\r\n" . $htmlBody;
+        $message = str_replace("\r\n.", "\r\n..", $message);
+        
+        fwrite($smtp, $message . "\r\n.\r\n");
+        $response = fgets($smtp, 1024);
+        
+        if (strpos($response, '250') === false) {
+            error_log("SMTP Send failed: $response");
+            fclose($smtp);
+            return false;
+        }
+        
+        fwrite($smtp, "QUIT\r\n");
+        fclose($smtp);
+        
+        return true;
+        
+    } catch (Exception $e) {
+        error_log("Email sending error: " . $e->getMessage());
+        return false;
+    }
 
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $mime = (string)$finfo->file($tmp);
