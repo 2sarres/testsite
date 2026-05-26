@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/src/email-config.php';
-require_once __DIR__ . '/src/bootstrap.php';
+require_once dirname(__DIR__) . '/src/email-config.php';
+require_once dirname(__DIR__) . '/src/bootstrap.php';
 
 // Afficher les erreurs
 ini_set('display_errors', 1);
@@ -12,9 +12,9 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 // Charger PHPMailer
-require_once __DIR__ . '/phpmailer/src/Exception.php';
-require_once __DIR__ . '/phpmailer/src/PHPMailer.php';
-require_once __DIR__ . '/phpmailer/src/SMTP.php';
+require_once dirname(__DIR__) . '/phpmailer/src/Exception.php';
+require_once dirname(__DIR__) . '/phpmailer/src/PHPMailer.php';
+require_once dirname(__DIR__) . '/phpmailer/src/SMTP.php';
 
 echo "<h2>Test d'envoi d'email</h2>";
 echo "<p>Configuration SMTP:</p>";
