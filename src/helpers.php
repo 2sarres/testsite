@@ -367,6 +367,17 @@ function send_email(string $to, string $subject, string $htmlBody, string $fromN
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         }
         
+        // Fix pour WAMP: désactiver la vérification SSL pour port 587
+        if (SMTP_PORT === 587) {
+            $mail->SMTPOptions = [
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                    'allow_self_signed' => true
+                ]
+            ];
+        }
+        
         $mail->CharSet = 'UTF-8';
         
         // Contenu
