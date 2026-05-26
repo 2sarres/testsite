@@ -1,11 +1,22 @@
 </main>
 <footer class="site-footer">
   <div class="container">
-    <nav>
-      <a href="/">Accueil</a>
-      <a href="/contact.php">Me contacter</a>
-    </nav>
-    <p>&copy; <?= date('Y') ?> Mon Site Articles. Tous droits réservés.</p>
+    <div class="site-footer__top">
+      <span class="site-footer__brand">Sky Atlas</span>
+      <nav class="site-footer__nav">
+        <a href="/">Accueil</a>
+        <a href="/contact.php">Nous contacter</a>
+      </nav>
+      <div class="site-footer__user-links">
+        <?php if ($user): ?>
+          <a href="/admin/index.php">Administration</a>
+          <a href="/logout.php">Déconnexion</a>
+        <?php else: ?>
+          <a href="/login.php">Accès rédacteurs</a>
+        <?php endif; ?>
+      </div>
+    </div>
+    <p class="site-footer__copyright">&copy; <?= date('Y') ?> Sky Atlas. Tous droits réservés.</p>
   </div>
 </footer>
 </body>

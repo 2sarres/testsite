@@ -9,11 +9,21 @@ declare(strict_types=1);
 define('ADMIN_EMAIL', 'site.aeroclub.buhl@gmail.com');
 
 // Optionnel: nom du site
-define('Skyatlas', 'revu dhotel');
+define('SITE_NAME', 'Sky Atlas');
 
 /**
- * Pour recevoir les emails de contact, vous devez:
- * 1. Remplacer 'admin@example.com' par votre véritable adresse email
- * 2. Vous assurer que votre serveur PHP est configuré pour envoyer des mails
- *    (vérifiez la configuration de mail dans php.ini ou contactez votre hébergeur)
+ * Configuration SMTP pour PHPMailer
+ * Utilise les identifiants de votre adresse Gmail
  */
+define('SMTP_USER', 'site.aeroclub.buhl@gmail.com');
+define('SMTP_PASS', 'rgjqospeloqywsol'); // Mot de passe d'application Gmail
+define('SMTP_FROM', 'site.aeroclub.buhl@gmail.com');
+
+/**
+ * IMPORTANT pour Gmail:
+ * 1. Activez la "Validation en 2 étapes" sur votre compte Gmail
+ * 2. Générez un "Mot de passe d'application" ici: https://myaccount.google.com/apppasswords
+ * 3. Utilisez ce mot de passe dans SMTP_PASS
+ * 4. Remplacez les adresses email par les vôtres si différentes
+ */
+

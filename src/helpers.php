@@ -336,67 +336,6 @@ function validate_uploaded_image(array $file): ?string
     return $name;
 }
 
-/**
- * Envoie un email via PHPMailer (SMTP sécurisé)
- * @return bool true si succès, false sinon
- */
-function send_email(string $to, string $subject, string $htmlBody, string $fromName = ''): bool
-{
-    require_once __DIR__ . '/email-config.php';
-    
-    // Charger PHPMailer
-    require_once __DIR__ . '/../phpmailer/src/Exception.php';
-    require_once __DIR__ . '/../phpmailer/src/PHPMailer.php';
-    require_once __DIR__ . '/../phpmailer/src/SMTP.php';
-    
-    try {
-        $mail = new PHPMailer(true);
-        
-        // Configuration SMTP
-        $mail->isSMTP();
-        $mail->Host = SMTP_HOST;
-        $mail->Port = SMTP_PORT;
-        $mail->SMTPAuth = true;
-        $mail->Username = SMTP_USER;
-        $mail->Password = SMTP_PASS;
-        
-        // Sécurité SSL/TLS
-        if (SMTP_PORT === 465) {
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-        } else {
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        }
-        
-        // Fix pour WAMP: désactiver la vérification SSL pour port 587
-        if (SMTP_PORT === 587) {
-            $mail->SMTPOptions = [
-                'ssl' => [
-                    'verify_peer' => false,
-                    'verify_peer_name' => false,
-                    'allow_self_signed' => true
-                ]
-            ];
-        }
-        
-        $mail->CharSet = 'UTF-8';
-        
-        // Contenu
-        $mail->setFrom(SMTP_FROM, $fromName ?: 'Contact Site');
-        $mail->addAddress($to);
-        $mail->isHTML(true);
-        $mail->Subject = $subject;
-        $mail->Body = $htmlBody;
-        
-        // Envoyer
-        $mail->send();
-        return true;
-        
-    } catch (Exception $e) {
-        error_log("Email sending error: " . $e->getMessage());
-        return false;
-    }
-}
-
 function upload_error_message(int $errorCode): string
 {
     if ($errorCode === UPLOAD_ERR_INI_SIZE || $errorCode === UPLOAD_ERR_FORM_SIZE) return "Image trop volumineuse (max 10 Mo).";

@@ -84,17 +84,6 @@ $featured = $pdo->query('SELECT a.*, c.label as category_label FROM articles a L
 <?php endforeach; ?>
 </div>
 
-<footer class="home-discrete-footer">
-  <div class="ftg-inner home-discrete-footer__inner">
-    <span class="home-discrete-footer__brand">Sky Atlas</span>
-    <?php if ($user): ?>
-      <a href="/admin/index.php">Administration</a> · <a href="/logout.php">Déconnexion</a>
-    <?php else: ?>
-      <a href="/login.php">Accès rédacteurs</a>
-    <?php endif; ?>
-  </div>
-</footer>
-
 <?php if ($isAdmin): ?>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 <script>

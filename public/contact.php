@@ -1,8 +1,16 @@
 <?php
 declare(strict_types=1);
-$pageTitle = 'Me contacter';
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+require dirname(__DIR__) . '/phpmailer/src/Exception.php';
+require dirname(__DIR__) . '/phpmailer/src/PHPMailer.php';
+require dirname(__DIR__) . '/phpmailer/src/SMTP.php';
+
+$pageTitle = 'Nous contacter';
 require_once dirname(__DIR__) . '/src/bootstrap.php';
 require_once dirname(__DIR__) . '/src/config.php';
+
 $errors = [];
 $formData = [
     'name' => '',
@@ -14,10 +22,10 @@ $formData = [
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify_or_fail();
 
-    $formData['name'] = trim($_POST['name'] ?? '');
-    $formData['email'] = trim($_POST['email'] ?? '');
-    $formData['subject'] = trim($_POST['subject'] ?? '');
-    $formData['message'] = trim($_POST['message'] ?? '');
+    $formData['name'] = htmlspecialchars(trim($_POST['name'] ?? ''));
+    $formData['email'] = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
+    $formData['subject'] = htmlspecialchars(trim($_POST['subject'] ?? ''));
+    $formData['message'] = htmlspecialchars(trim($_POST['message'] ?? ''));
 
     if ($formData['name'] === '') {
         $errors[] = 'Le nom est requis.';
@@ -35,40 +43,133 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($errors)) {
-        $adminEmail = ADMIN_EMAIL; // Utilise la configuration
+        $mail = new PHPMailer(true);
         
-        $emailSubject = "[Contact] " . e($formData['subject']);
-        
-        $emailBody = "
-        <html>
-        <head><meta charset='UTF-8'></head>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6;'>
-            <h2>Nouveau message de contact</h2>
-            <p><strong>Nom:</strong> " . e($formData['name']) . "</p>
-            <p><strong>Email:</strong> " . e($formData['email']) . "</p>
-            <p><strong>Sujet:</strong> " . e($formData['subject']) . "</p>
-            <hr>
-            <h3>Message:</h3>
-            <p>" . nl2br(e($formData['message'])) . "</p>
-        </body>
-        </html>";
+        try {
+            // Configuration du serveur SMTP
+            $mail->isSMTP();
+            $mail->Host = 'smtp.gmail.com';
+            $mail->SMTPAuth = true;
+            $mail->Username = SMTP_USER;
+            $mail->Password = SMTP_PASS;
+            $mail->SMTPSecure = 'ssl';
+            $mail->Port = 465;
+            $mail->CharSet = "UTF-8";
+            $mail->SMTPOptions = array(
+                'ssl' => array(
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                    'allow_self_signed' => true
+                )
+            );
 
-        // Utilise la fonction SMTP secure
-        if (send_email($adminEmail, $emailSubject, $emailBody, $formData['name'])) {
-            flash_set('success', 'Votre message a été envoyé avec succès. Merci de nous avoir contacté!');
-            redirect('/contact.php');
-        } else {
-            $errors[] = 'Une erreur s\'est produite lors de l\'envoi du message. Veuillez réessayer.';
+            // Ajouter l'adresse email admin
+            $mail->addAddress(ADMIN_EMAIL);
+            
+            // Reply-To pour répondre à l'expéditeur
+            $mail->addReplyTo($formData['email'], $formData['name']);
+            
+            // From
+            $mail->setFrom(SMTP_FROM, SITE_NAME);
+
+            // Contenu de l'email
+            $mail->isHTML(true);
+            $mail->Subject = '[Contact] ' . $formData['subject'];
+            
+            $message = '
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Nouveau message de contact</title>
+                <style>
+                    @media only screen and (max-width: 600px) {
+                        .container {
+                            width: 100% !important;
+                        }
+                        .content {
+                            padding: 20px !important;
+                        }
+                    }
+                    body {
+                        margin: 0; 
+                        padding: 0; 
+                        font-family: Arial, sans-serif; 
+                        background-color: rgb(200, 230, 236); 
+                        border-radius: 10px;
+                    }
+                    .container {
+                        max-width: 600px; 
+                        margin: 0 auto; 
+                        background-color: rgb(200, 230, 236);
+                    }
+                    .content {
+                        padding: 40px; 
+                        text-align: left; 
+                        color: rgb(36, 159, 187);
+                    }
+                    h1 {
+                        margin-top: 0;
+                        color: rgb(36, 159, 187);
+                    }
+                    .info-block {
+                        background: rgba(255, 255, 255, 0.5);
+                        padding: 15px;
+                        border-left: 3px solid rgb(36, 159, 187);
+                        margin: 20px 0;
+                    }
+                    strong {
+                        color: rgb(36, 159, 187);
+                    }
+                    p {
+                        margin: 10px 0;
+                        line-height: 1.6;
+                    }
+                </style>
+            </head>
+            <body>
+                <table class="container" cellspacing="0" cellpadding="0">
+                    <tr>
+                        <td class="content">
+                            <h1>Nouveau message de ' . $formData['name'] . '</h1>
+                            <div class="info-block">
+                                <p><strong>Nom :</strong> ' . $formData['name'] . '</p>
+                                <p><strong>Email :</strong> ' . $formData['email'] . '</p>
+                                <p><strong>Sujet :</strong> ' . $formData['subject'] . '</p>
+                            </div>
+                            <h2>Message :</h2>
+                            <p>' . nl2br($formData['message']) . '</p>
+                            <hr>
+                            <p style="font-size: 12px; color: #999;">Répondez directement à ce message pour contacter ' . $formData['name'] . '.</p>
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+            ';
+    
+            $mail->Body = $message;
+            
+            if ($mail->send()) {
+                flash_set('success', 'Votre message a été envoyé avec succès. Merci de nous avoir contacté!');
+                redirect('/contact.php');
+            } else {
+                error_log("Message could not be sent. Mailer Error: {$mail->ErrorInfo}");
+                $errors[] = 'Une erreur s\'est produite lors de l\'envoi du message. Veuillez réessayer.';
+            }
+        } catch (Exception $e) {
+            error_log("Message could not be sent. Mailer Error: {$mail->ErrorInfo}");
+            $errors[] = 'Une erreur s\'est produite lors de l\'envoi du message.';
         }
     }
 }
-
 require dirname(__FILE__) . '/_header.php';
 ?>
 
 <div class="contact-page">
-    <h1>Me contacter</h1>
-    <p>Vous avez une question ou un commentaire? Remplissez le formulaire ci-dessous et je vous répondrai dès que possible.</p>
+    <h1>Nous contacter</h1>
+    <p>Vous avez une question ou un commentaire? Remplissez le formulaire ci-dessous et nous vous répondrons dès que possible.</p>
 
     <?php if (!empty($errors)): ?>
         <div class="flash error">
