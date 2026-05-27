@@ -42,7 +42,7 @@ $articles = $stmt->fetchAll();
 ?>
 <div class="card">
   <h1>Ordre des articles — <?= e((string)$category['label']) ?></h1>
-  <p class="meta">Plus petit nombre = affiché en premier dans la catégorie (page d’accueil et <a href="/category.php?slug=<?= urlencode((string)$category['slug']) ?>">page liste</a>).</p>
+  <p class="meta">Plus petit nombre = affiché en premier dans la catégorie (page d'accueil et <a href="/category.php?slug=<?= urlencode((string)$category['slug']) ?>">page liste</a>).</p>
   <div class="top-actions">
     <a class="btn secondary" href="/admin/categories.php">Catégories</a>
     <a class="btn secondary" href="/admin/index.php">Articles</a>
@@ -78,7 +78,7 @@ $articles = $stmt->fetchAll();
           <?php endforeach; ?>
         </tbody>
       </table>
-      <p style="margin-top:14px;"><button class="btn" type="submit">Enregistrer l’ordre</button></p>
+      <p style="margin-top:14px;"><button class="btn" type="submit">Enregistrer l'ordre</button></p>
     </form>
   <?php endif; ?>
 </div>
