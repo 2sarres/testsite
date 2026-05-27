@@ -5,6 +5,24 @@ require_once dirname(__DIR__) . '/_header.php';
 $user = require_admin();
 db_install($pdo);
 
+// Suppression de catégorie
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_category'])) {
+    csrf_verify_or_fail();
+    $catId = (int)$_POST['delete_category'];
+    
+    // Vérifier qu'il n'y a pas d'articles dans cette catégorie
+    $countArticles = articles_count_in_category($pdo, $catId);
+    if ($countArticles > 0) {
+        flash_set('error', 'Impossible de supprimer cette catégorie : elle contient ' . $countArticles . ' article(s). Déplacez ou supprimez d\'abord les articles.');
+    } else {
+        $del = $pdo->prepare('DELETE FROM categories WHERE id = :id');
+        $del->execute([':id' => $catId]);
+        flash_set('success', 'Catégorie supprimée avec succès.');
+    }
+    redirect('/admin/categories.php');
+}
+
+// Mise à jour de l'ordre d'affichage
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
     csrf_verify_or_fail();
     $orders = $_POST['sort_order'] ?? [];
@@ -26,16 +44,16 @@ $cats = categories_all_ordered($pdo);
 ?>
 <div class="card">
   <h1>Catégories</h1>
-  <p>Gérez les rubriques du site, leur ordre d’affichage et l’URL (<code>slug</code>) utilisée pour <a href="/">l’accueil</a> et les pages liste.</p>
+  <p>Gérez les rubriques du site, leur ordre d'affichage et l'URL (<code>slug</code>) utilisée pour <a href="/">l'accueil</a> et les pages liste.</p>
   <div class="top-actions">
-    <a class="btn" href="/admin/category-new.php">Nouvelle catégorie</a>
+    <a class="btn" href="/admin/category-new.php">+ Nouvelle catégorie</a>
     <a class="btn secondary" href="/admin/index.php">Retour admin</a>
   </div>
 </div>
 
 <div class="card">
-  <h2>Ordre d’affichage</h2>
-  <p class="meta">Plus petit nombre = affiché plus haut sur l’accueil.</p>
+  <h2>Ordre d'affichage</h2>
+  <p class="meta">Plus petit nombre = affiché plus haut sur l'accueil.</p>
   <form method="post">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
     <input type="hidden" name="save_order" value="1">
@@ -62,12 +80,16 @@ $cats = categories_all_ordered($pdo);
               <a class="btn secondary" href="/admin/category-edit.php?id=<?= (int)$c['id'] ?>">Modifier</a>
               <a class="btn secondary" href="/admin/category-articles.php?id=<?= (int)$c['id'] ?>">Ordre articles</a>
               <a class="btn secondary" href="/category.php?slug=<?= urlencode((string)$c['slug']) ?>">Voir</a>
+              <form method="post" style="display:inline;" onsubmit="return confirm('Êtes-vous sûr ? (La catégorie doit être vide)');">
+                <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+                <button type="submit" name="delete_category" value="<?= (int)$c['id'] ?>" class="btn secondary" style="background-color:#dc2626; color:white;">Supprimer</button>
+              </form>
             </td>
           </tr>
         <?php endforeach; ?>
       </tbody>
     </table>
-    <p style="margin-top:14px;"><button class="btn" type="submit">Enregistrer l’ordre</button></p>
+    <p style="margin-top:14px;"><button class="btn" type="submit">Enregistrer l'ordre</button></p>
   </form>
 </div>
 
