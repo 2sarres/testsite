@@ -8,8 +8,13 @@ require dirname(__DIR__) . '/phpmailer/src/PHPMailer.php';
 require dirname(__DIR__) . '/phpmailer/src/SMTP.php';
 
 $pageTitle = 'Nous contacter';
+
+// 1. CORRECTION ERREUR 500 : On charge l'en-tête et la BDD ($pdo) EN PREMIER
+require_once __DIR__ . '/_header.php';
 require_once dirname(__DIR__) . '/src/bootstrap.php';
 require_once dirname(__DIR__) . '/src/config.php';
+// On importe le fichier de config email pour avoir accès à SMTP_HOST, etc.
+require_once dirname(__DIR__) . '/src/email-config.php';
 
 $errors = [];
 $formData = [
@@ -47,12 +52,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         try {
             $mail->isSMTP();
-            $mail->Host = SMTP_HOST; // Correction pour prendre le Host depuis email-config.php
+            $mail->Host = SMTP_HOST; 
             $mail->SMTPAuth = true;
             $mail->Username = SMTP_USER;
             $mail->Password = SMTP_PASS;
             $mail->SMTPSecure = 'ssl';
-            $mail->Port = 465;
+            $mail->Port = defined('SMTP_PORT') ? SMTP_PORT : 465;
             $mail->CharSet = "UTF-8";
             $mail->SMTPOptions = array(
                 'ssl' => array(
@@ -62,11 +67,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 )
             );
 
-            // NOUVEAUTÉ : Envoyer le mail à TOUS les administrateurs
+            // Envoyer le mail à TOUS les administrateurs
             $adminEmails = get_all_admin_emails($pdo);
             if (empty($adminEmails)) {
-                // Fallback sécurité si aucun admin trouvé
-                $mail->addAddress(defined('ADMIN_EMAIL') ? ADMIN_EMAIL : SMTP_USER);
+                $mail->addAddress(SMTP_USER);
             } else {
                 foreach ($adminEmails as $adminEmail) {
                     $mail->addAddress($adminEmail);
@@ -88,77 +92,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <html>
             <head>
                 <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Nouveau message de contact</title>
                 <style>
-                    @media only screen and (max-width: 600px) {
-                        .container {
-                            width: 100% !important;
-                        }
-                        .content {
-                            padding: 20px !important;
-                        }
-                    }
-                    body {
-                        margin: 0; 
-                        padding: 0; 
-                        font-family: Arial, sans-serif; 
-                        background-color: rgb(200, 230, 236); 
-                    }
-                    .container {
-                        max-width: 600px; 
-                        margin: 0 auto; 
-                        background-color: white;
-                        border-radius: 8px;
-                        overflow: hidden;
-                        margin-top: 20px;
-                        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-                    }
-                    .content {
-                        padding: 40px; 
-                        text-align: left; 
-                        color: #333;
-                    }
-                    h1 {
-                        margin-top: 0;
-                        color: rgb(36, 159, 187);
-                        border-bottom: 2px solid #eee;
-                        padding-bottom: 10px;
-                    }
-                    .info-block {
-                        background: #f9f9f9;
-                        padding: 15px;
-                        border-left: 4px solid rgb(36, 159, 187);
-                        margin: 20px 0;
-                        border-radius: 4px;
-                    }
-                    strong {
-                        color: #555;
-                    }
-                    p {
-                        margin: 10px 0;
-                        line-height: 1.6;
-                        color: #444;
-                    }
+                    body { font-family: Arial, sans-serif; background-color: rgb(200, 230, 236); padding: 20px; }
+                    .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 40px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+                    h1 { color: rgb(36, 159, 187); border-bottom: 2px solid #eee; padding-bottom: 10px; }
+                    .info-block { background: #f9f9f9; padding: 15px; border-left: 4px solid rgb(36, 159, 187); margin: 20px 0; border-radius: 4px; }
+                    p { line-height: 1.6; color: #444; }
                 </style>
             </head>
             <body>
-                <table class="container" cellspacing="0" cellpadding="0">
-                    <tr>
-                        <td class="content">
-                            <h1>Nouveau message de ' . $formData['name'] . '</h1>
-                            <div class="info-block">
-                                <p><strong>Nom :</strong> ' . $formData['name'] . '</p>
-                                <p><strong>Email :</strong> ' . $formData['email'] . '</p>
-                                <p><strong>Sujet :</strong> ' . $formData['subject'] . '</p>
-                            </div>
-                            <h2 style="color: #666; font-size: 16px;">Message :</h2>
-                            <p style="background: #f0f8ff; padding: 15px; border-radius: 4px;">' . nl2br($formData['message']) . '</p>
-                            <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;">
-                            <p style="font-size: 12px; color: #999; text-align: center;">Répondez directement à cet email pour contacter ' . $formData['name'] . '.</p>
-                        </td>
-                    </tr>
-                </table>
+                <div class="container">
+                    <h1>Nouveau message de ' . $formData['name'] . '</h1>
+                    <div class="info-block">
+                        <p><strong>Nom :</strong> ' . $formData['name'] . '</p>
+                        <p><strong>Email :</strong> ' . $formData['email'] . '</p>
+                        <p><strong>Sujet :</strong> ' . $formData['subject'] . '</p>
+                    </div>
+                    <h2 style="color: #666; font-size: 16px;">Message :</h2>
+                    <p style="background: #f0f8ff; padding: 15px; border-radius: 4px;">' . nl2br($formData['message']) . '</p>
+                </div>
             </body>
             </html>
             ';
@@ -169,19 +121,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('success', 'Votre message a été envoyé avec succès aux administrateurs. Merci de nous avoir contacté !');
                 redirect('/contact.php');
             } else {
-                error_log("Message could not be sent. Mailer Error: {$mail->ErrorInfo}");
-                $errors[] = 'Une erreur s\'est produite lors de l\'envoi du message. Veuillez réessayer.';
+                $errors[] = 'Une erreur s\'est produite lors de l\'envoi du message.';
             }
         } catch (Exception $e) {
-            error_log("Message could not be sent. Mailer Error: {$mail->ErrorInfo}");
             $errors[] = 'Une erreur s\'est produite lors de l\'envoi du message.';
         }
     }
 }
-require dirname(__FILE__) . '/_header.php';
 ?>
 
-<div class="contact-page">
+<div class="contact-page" style="max-width: 800px; margin: 2rem auto;">
     <h1>Nous contacter</h1>
     <p>Vous avez une question ou un commentaire ? Remplissez le formulaire ci-dessous et nous vous répondrons dès que possible.</p>
 
@@ -206,53 +155,22 @@ require dirname(__FILE__) . '/_header.php';
 
         <div class="form-group" style="margin-bottom: 1.5rem;">
             <label for="name" style="font-weight: bold; display: block; margin-bottom: 0.5rem;">Votre nom *</label>
-            <input 
-                type="text" 
-                id="name" 
-                name="name" 
-                value="<?= e($formData['name']) ?>" 
-                required 
-                placeholder="Jean Dupont"
-                style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;"
-            >
+            <input type="text" id="name" name="name" value="<?= e($formData['name']) ?>" required placeholder="Jean Dupont" style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
         </div>
 
         <div class="form-group" style="margin-bottom: 1.5rem;">
             <label for="email" style="font-weight: bold; display: block; margin-bottom: 0.5rem;">Votre email *</label>
-            <input 
-                type="email" 
-                id="email" 
-                name="email" 
-                value="<?= e($formData['email']) ?>" 
-                required 
-                placeholder="jean@example.com"
-                style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;"
-            >
+            <input type="email" id="email" name="email" value="<?= e($formData['email']) ?>" required placeholder="jean@example.com" style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
         </div>
 
         <div class="form-group" style="margin-bottom: 1.5rem;">
             <label for="subject" style="font-weight: bold; display: block; margin-bottom: 0.5rem;">Sujet *</label>
-            <input 
-                type="text" 
-                id="subject" 
-                name="subject" 
-                value="<?= e($formData['subject']) ?>" 
-                required 
-                placeholder="À quel sujet?"
-                style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;"
-            >
+            <input type="text" id="subject" name="subject" value="<?= e($formData['subject']) ?>" required placeholder="À quel sujet?" style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
         </div>
 
         <div class="form-group" style="margin-bottom: 1.5rem;">
             <label for="message" style="font-weight: bold; display: block; margin-bottom: 0.5rem;">Message *</label>
-            <textarea 
-                id="message" 
-                name="message" 
-                rows="8" 
-                required 
-                placeholder="Écrivez votre message ici..."
-                style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; resize: vertical;"
-            ><?= e($formData['message']) ?></textarea>
+            <textarea id="message" name="message" rows="8" required placeholder="Écrivez votre message ici..." style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; resize: vertical;"><?= e($formData['message']) ?></textarea>
         </div>
 
         <button type="submit" class="btn btn-primary" style="background: #2196F3; color: white; padding: 1rem 2rem; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%;">Envoyer le message</button>

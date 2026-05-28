@@ -83,11 +83,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ':created_at' => $now,
             ':updated_at' => $now,
         ]);
-        flash_set('success', 'Article créé.');
+        flash_set('success', 'Article créé avec succès.');
         redirect('/admin/index.php');
     }
 }
 ?>
+<style>
+/* CSS ULTRA-PRIORITAIRE POUR FORCER LE SLIDER ET ÉCRASER LE THÈME GLOBAL */
+.visibility-container { background: #f9f9f9; padding: 1.5rem; border-radius: 8px; border: 1px solid #e0e0e0; margin-bottom: 1.5rem; }
+.visibility-label { font-weight: bold; display: block; margin-bottom: 15px; color: #333; }
+.switch-wrapper { display: flex; align-items: center; gap: 15px; }
+
+.switch { position: relative !important; display: inline-block !important; width: 60px !important; height: 34px !important; margin: 0 !important; padding: 0 !important; }
+/* On cache la checkbox de base */
+.switch input[type="checkbox"] { opacity: 0 !important; width: 0 !important; height: 0 !important; position: absolute !important; margin: 0 !important; pointer-events: none !important; }
+
+/* On crée la glissière */
+.slider { position: absolute !important; cursor: pointer !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; background-color: #ccc !important; transition: .4s !important; border-radius: 34px !important; display: block !important; border: none !important; margin: 0 !important; padding: 0 !important; }
+/* On crée la bille blanche */
+.slider:before { position: absolute !important; content: "" !important; height: 26px !important; width: 26px !important; left: 4px !important; bottom: 4px !important; background-color: white !important; transition: .4s !important; border-radius: 50% !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important; margin: 0 !important; }
+
+/* États cochés */
+.switch input[type="checkbox"]:checked + .slider { background-color: #4CAF50 !important; }
+.switch input[type="checkbox"]:checked + .slider:before { transform: translateX(26px) !important; }
+
+.state-text { transition: 0.3s; font-size: 1rem; }
+</style>
+
 <div class="card">
   <h1>Nouvel article</h1>
   <?php foreach ($errors as $err): ?>
@@ -95,28 +117,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <?php endforeach; ?>
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+    
+    <div class="visibility-container">
+        <label class="visibility-label">👁️ Visibilité de l'article :</label>
+        <div class="switch-wrapper">
+            <span class="state-text state-prive" id="label-prive" style="<?= !$published ? 'font-weight:bold; color:#333;' : 'font-weight:normal; color:#999;' ?>">Privé (Brouillon)</span>
+            <label class="switch">
+                <input type="checkbox" name="published" value="1" id="publish-toggle" <?= $published ? 'checked' : '' ?>>
+                <span class="slider"></span>
+            </label>
+            <span class="state-text state-public" id="label-public" style="<?= $published ? 'font-weight:bold; color:#4CAF50;' : 'font-weight:normal; color:#999;' ?>">Publique (En ligne)</span>
+        </div>
+    </div>
+    
     <label>Catégorie</label>
     <select name="category_id">
       <?php foreach ($cats as $c): ?>
         <option value="<?= (int)$c['id'] ?>" <?= ((int)$c['id'] === $categoryId) ? 'selected' : '' ?>><?= e((string)$c['label']) ?></option>
       <?php endforeach; ?>
     </select>
+    
     <label>Ordre dans la catégorie (optionnel, laissez 0 pour placer en fin)</label>
     <input type="number" name="sort_order" value="<?= (int)$sortOrder ?>" placeholder="0 = auto">
+    
     <label>Titre</label>
     <input type="text" name="title" required value="<?= e($title) ?>">
+    
     <label>Extrait (optionnel)</label>
     <textarea name="excerpt" rows="3"><?= e($excerpt) ?></textarea>
+    
     <label>Image de couverture (optionnel)</label>
     <input type="file" name="cover_image" accept="image/*">
+    
     <label>Contenu</label>
     <textarea id="content_html" name="content_html" rows="12"><?= e($contentHtml) ?></textarea>
-    <label><input type="checkbox" name="published" value="1" <?= $published ? 'checked' : '' ?>> Publier immédiatement</label>
+    
     <br><br>
-    <button class="btn" type="submit">Créer l'article</button>
+    <button class="btn" type="submit" style="background:#4CAF50; color: white;">📝 Créer l'article</button>
     <a class="btn secondary" href="/admin/index.php">Annuler</a>
   </form>
 </div>
+
+<script>
+document.getElementById('publish-toggle').addEventListener('change', function() {
+    const lblPrive = document.getElementById('label-prive');
+    const lblPublic = document.getElementById('label-public');
+    if(this.checked) {
+        lblPrive.style.fontWeight = 'normal'; lblPrive.style.color = '#999';
+        lblPublic.style.fontWeight = 'bold'; lblPublic.style.color = '#4CAF50';
+    } else {
+        lblPrive.style.fontWeight = 'bold'; lblPrive.style.color = '#333';
+        lblPublic.style.fontWeight = 'normal'; lblPublic.style.color = '#999';
+    }
+});
+</script>
+
 <script src="https://cdn.tiny.cloud/1/1dug8qkolte5l18uwjdmjarp7qaucozlzjg9xyn6dvcfocms/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
 tinymce.init({

@@ -1,236 +1,189 @@
 <?php
 declare(strict_types=1);
-$pageTitle = "Modifier l'article";
+$pageTitle = 'Modifier la catégorie';
 require_once dirname(__DIR__) . '/_header.php';
-$user = require_admin();
+require_admin();
 db_install($pdo);
 
 $id = (int)($_GET['id'] ?? 0);
-if ($id <= 0) {
-    flash_set('error', 'Article invalide.');
-    redirect('/admin/index.php');
-}
+if ($id <= 0) { flash_set('error', 'Catégorie invalide.'); redirect('/admin/categories.php'); }
 
-$stmt = $pdo->prepare("SELECT * FROM articles WHERE id = :id LIMIT 1");
-$stmt->execute([':id' => $id]);
-$article = $stmt->fetch();
-if (!$article) {
-    flash_set('error', 'Article introuvable.');
-    redirect('/admin/index.php');
-}
+$cat = category_by_id($pdo, $id);
+if (!$cat) { flash_set('error', 'Catégorie introuvable.'); redirect('/admin/categories.php'); }
 
 $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify_or_fail();
 
-    if (isset($_POST['delete']) && $_POST['delete'] === '1') {
-        $del = $pdo->prepare("DELETE FROM articles WHERE id = :id");
-        $del->execute([':id' => $id]);
-        flash_set('success', 'Article supprimé.');
-        redirect('/admin/index.php');
-    }
-
-    $title = trim((string)($_POST['title'] ?? ''));
-    $excerpt = trim((string)($_POST['excerpt'] ?? ''));
-    $contentHtml = (string)($_POST['content_html'] ?? '');
-    $published = isset($_POST['published']) ? 1 : 0;
-    $coverImage = (string)($article['cover_image'] ?? '');
-    $cats = categories_all_ordered($pdo);
-    $validCatIds = array_map('intval', array_column($cats, 'id'));
-    $categoryId = (int)($_POST['category_id'] ?? 0);
-    if (!in_array($categoryId, $validCatIds, true)) {
-        $categoryId = (int)($validCatIds[0] ?? 0);
-    }
-    $sortOrder = (int)($_POST['sort_order'] ?? 0);
-    if ($sortOrder <= 0) {
-        $sortOrder = (int)($article['sort_order'] ?? 0);
-    }
-
-    if ($title === '') {
-        $errors[] = 'Le titre est obligatoire.';
-    }
-    if (mb_strlen($excerpt, 'UTF-8') > 500) {
-        $errors[] = 'L’extrait doit faire 500 caractères max.';
-    }
-    if (trim(strip_tags($contentHtml)) === '') {
-        $errors[] = 'Le contenu est obligatoire.';
-    }
-
-    if (!empty($_FILES['cover_image']) && is_array($_FILES['cover_image'])) {
-        $imgName = validate_uploaded_image($_FILES['cover_image']);
-        if ($imgName === null && (int)($_FILES['cover_image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-            $errors[] = 'Image de couverture invalide.';
-        } elseif ($imgName !== null) {
-            $target = dirname(__DIR__, 2) . '/public/uploads/' . $imgName;
-            if (!move_uploaded_file((string)$_FILES['cover_image']['tmp_name'], $target)) {
-                $errors[] = "Impossible d'enregistrer l'image de couverture.";
-            } else {
-                $coverImage = $imgName;
-            }
+    if (isset($_POST['delete']) && (string)$_POST['delete'] === '1') {
+        if (articles_count_in_category($pdo, $id) > 0) {
+            flash_set('error', 'Impossible de supprimer : des articles sont encore dans cette catégorie.');
+            redirect('/admin/category-edit.php?id=' . $id);
         }
+        $pdo->prepare('DELETE FROM categories WHERE id = :id')->execute([':id' => $id]);
+        flash_set('success', 'Catégorie supprimée.');
+        redirect('/admin/categories.php');
+    }
+
+    $label = trim((string)($_POST['label'] ?? ''));
+    $slugManual = trim((string)($_POST['slug'] ?? ''));
+    $dek = trim((string)($_POST['dek'] ?? ''));
+    $sortOrder = (int)($_POST['sort_order'] ?? 0);
+    $imgType = $_POST['img_type'] ?? 'url';
+    $accentImg = (string)$cat['accent_img']; // Ancien image par défaut
+
+    if ($label === '') $errors[] = 'Le libellé est obligatoire.';
+    $slugBase = $slugManual !== '' ? $slugManual : $label;
+    if (normalize_slug($slugBase) === '') $errors[] = 'Slug invalide.';
+
+    if ($imgType === 'upload') {
+        $croppedData = trim((string)($_POST['cropped_image'] ?? ''));
+        if ($croppedData !== '') {
+            $savedPath = process_base64_upload($croppedData);
+            if ($savedPath) $accentImg = $savedPath;
+            else $errors[] = "Erreur lors de l'enregistrement de l'image.";
+        }
+    } else {
+        $postedUrl = trim((string)($_POST['accent_img'] ?? ''));
+        if ($postedUrl !== '') $accentImg = $postedUrl;
+        if ($accentImg === '') $errors[] = "L'URL de l'image est obligatoire.";
     }
 
     if (!$errors) {
-        $slug = make_unique_slug($pdo, $title, $id);
-        $catSlug = category_slug_for_id($pdo, $categoryId);
-        if ($catSlug === '') {
-            $catSlug = 'non-classe';
-        }
-        $up = $pdo->prepare(
-            "UPDATE articles
-             SET title = :title, slug = :slug, excerpt = :excerpt, content_html = :content_html,
-                 cover_image = :cover_image, published = :published, category_slug = :category_slug,
-                 category_id = :category_id, sort_order = :sort_order, updated_at = :updated_at
-             WHERE id = :id"
-        );
-        $up->execute([
-            ':title' => $title,
-            ':slug' => $slug,
-            ':excerpt' => $excerpt,
-            ':content_html' => $contentHtml,
-            ':cover_image' => ($coverImage !== '' ? $coverImage : null),
-            ':published' => $published,
-            ':category_slug' => $catSlug,
-            ':category_id' => $categoryId,
-            ':sort_order' => $sortOrder,
-            ':updated_at' => date('c'),
-            ':id' => $id,
-        ]);
-        flash_set('success', 'Article mis à jour.');
-        redirect('/admin/article-edit.php?id=' . $id);
+        $newSlug = make_unique_category_slug($pdo, $slugBase, $id);
+        $pdo->prepare('UPDATE categories SET slug = :slug, label = :label, dek = :dek, accent_img = :img, sort_order = :so WHERE id = :id')
+            ->execute([':slug' => $newSlug, ':label' => $label, ':dek' => $dek, ':img' => $accentImg, ':so' => $sortOrder, ':id' => $id]);
+        $pdo->prepare('UPDATE articles SET category_slug = :s WHERE category_id = :id')->execute([':s' => $newSlug, ':id' => $id]);
+        flash_set('success', 'Catégorie mise à jour.');
+        redirect('/admin/category-edit.php?id=' . $id);
     }
 }
 
-// Re-requête pour afficher les infos fraîches après l'update
-$stmt = $pdo->prepare("SELECT * FROM articles WHERE id = :id LIMIT 1");
-$stmt->execute([':id' => $id]);
-$article = $stmt->fetch();
-
-$cats = categories_all_ordered($pdo);
-$categoryId = (int)($article['category_id'] ?? 0);
-$validCatIds = array_map('intval', array_column($cats, 'id'));
-if (!in_array($categoryId, $validCatIds, true) && $validCatIds !== []) {
-    $categoryId = (int)$validCatIds[0];
-}
-$sortOrderVal = (int)($article['sort_order'] ?? 0);
-$isPublished = ((int)$article['published'] === 1);
+$cat = category_by_id($pdo, $id);
+$currentImg = (string)$cat['accent_img'];
+$isUpload = (strpos($currentImg, '/uploads/') === 0); // Détecter si l'image actuelle est un upload local
 ?>
-<style>
-/* CSS pour le bouton slider de visibilité */
-.visibility-container { background: #f9f9f9; padding: 1.5rem; border-radius: 8px; border: 1px solid #e0e0e0; margin-bottom: 1.5rem; }
-.visibility-label { font-weight: bold; display: block; margin-bottom: 15px; color: #333; }
-.switch-wrapper { display: flex; align-items: center; gap: 15px; }
-.switch { position: relative; display: inline-block; width: 60px; height: 34px; margin: 0; }
-.switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
-.slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-input:checked + .slider { background-color: #4CAF50; }
-input:checked + .slider:before { transform: translateX(26px); }
-.state-text { transition: 0.3s; font-size: 1rem; }
-</style>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 <div class="card">
-  <h1>Modifier l'article</h1>
-  <?php $flashes = flash_get_all(); foreach ($flashes as $f): ?>
-    <div class="flash <?= e($f['type']) ?>"><?= e($f['message']) ?></div>
-  <?php endforeach; ?>
-  <?php foreach ($errors as $err): ?>
-    <div class="flash error"><?= e($err) ?></div>
-  <?php endforeach; ?>
+  <h1>Modifier la catégorie</h1>
+  <?php foreach ($errors as $err): ?><div class="flash error"><?= e($err) ?></div><?php endforeach; ?>
   
-  <form method="post" enctype="multipart/form-data">
+  <form method="post">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+    <label>Libellé</label>
+    <input type="text" name="label" required value="<?= e((string)$cat['label']) ?>">
+    <label>Slug URL</label>
+    <input type="text" name="slug" required value="<?= e((string)$cat['slug']) ?>">
+    <label>Chapô</label>
+    <textarea name="dek" rows="3"><?= e((string)$cat['dek']) ?></textarea>
     
-    <div class="visibility-container">
-        <label class="visibility-label">👁️ Visibilité de l'article :</label>
-        <div class="switch-wrapper">
-            <span class="state-text state-prive" id="label-prive" style="<?= !$isPublished ? 'font-weight:bold; color:#333;' : 'font-weight:normal; color:#999;' ?>">Privé (Brouillon)</span>
-            <label class="switch">
-                <input type="checkbox" name="published" value="1" id="publish-toggle" <?= $isPublished ? 'checked' : '' ?>>
-                <span class="slider"></span>
-            </label>
-            <span class="state-text state-public" id="label-public" style="<?= $isPublished ? 'font-weight:bold; color:#4CAF50;' : 'font-weight:normal; color:#999;' ?>">Publique (En ligne)</span>
+    <hr style="margin:25px 0; border:0; border-top:1px solid #ddd;">
+    
+    <label>Image décorative</label>
+    <div style="margin-bottom:15px; display:flex; gap:20px; background:#f9f9f9; padding:10px; border-radius:8px;">
+        <label style="font-weight:normal;"><input type="radio" name="img_type" value="url" <?= !$isUpload ? 'checked' : '' ?> onchange="toggleImg()"> Utiliser une URL</label>
+        <label style="font-weight:normal;"><input type="radio" name="img_type" value="upload" <?= $isUpload ? 'checked' : '' ?> onchange="toggleImg()"> Uploader / Remplacer (Recadrage)</label>
+    </div>
+
+    <div id="div-url" style="<?= $isUpload ? 'display:none;' : '' ?>">
+        <input type="url" name="accent_img" value="<?= !$isUpload ? e($currentImg) : '' ?>">
+        <?php if(!$isUpload): ?>
+            <img src="<?= e($currentImg) ?>" style="max-height:100px; margin-top:10px; border-radius:6px;">
+        <?php endif; ?>
+    </div>
+
+    <div id="div-upload" style="<?= !$isUpload ? 'display:none;' : '' ?> background:#faf5ec; padding:15px; border:1px solid #d7b88a; border-radius:8px;">
+        <input type="file" id="upload-input" accept="image/png, image/jpeg, image/webp">
+        <input type="hidden" name="cropped_image" id="cropped_image">
+        
+        <div id="preview-container" style="<?= !$isUpload ? 'display:none;' : 'margin-top:15px;' ?>">
+            <p style="margin:0 0 5px; font-size:0.9rem; color:#666;">Image actuelle / Aperçu :</p>
+            <img id="preview-img" src="<?= $isUpload ? e($currentImg) : '' ?>" style="max-width:100%; max-height:250px; border-radius:8px; border:1px solid #ccc;">
         </div>
     </div>
+
+    <hr style="margin:25px 0; border:0; border-top:1px solid #ddd;">
+
+    <label>Ordre</label>
+    <input type="number" name="sort_order" value="<?= (int)$cat['sort_order'] ?>">
     
-    <label>Catégorie</label>
-    <select name="category_id">
-      <?php foreach ($cats as $c): ?>
-        <option value="<?= (int)$c['id'] ?>" <?= ((int)$c['id'] === $categoryId) ? 'selected' : '' ?>><?= e((string)$c['label']) ?></option>
-      <?php endforeach; ?>
-    </select>
-    
-    <label>Ordre dans la catégorie</label>
-    <input type="number" name="sort_order" value="<?= $sortOrderVal ?>">
-    
-    <label>Titre</label>
-    <input type="text" name="title" required value="<?= e((string)$article['title']) ?>">
-    
-    <label>Extrait (optionnel)</label>
-    <textarea name="excerpt" rows="3"><?= e((string)$article['excerpt']) ?></textarea>
-    
-    <label>Image de couverture (optionnel)</label>
-    <?php if (!empty($article['cover_image'])): ?>
-      <p><img src="/uploads/<?= e((string)$article['cover_image']) ?>" alt="" style="max-width:250px"></p>
-    <?php endif; ?>
-    <input type="file" name="cover_image" accept="image/*">
-    
-    <label>Contenu</label>
-    <textarea id="content_html" name="content_html" rows="12"><?= e((string)$article['content_html']) ?></textarea>
-    
-    <br><br>
-    <button class="btn" type="submit" style="background:#2196F3;">💾 Enregistrer les modifications</button>
-    <a class="btn secondary" href="/admin/index.php">Retour au tableau de bord</a>
+    <p style="margin-top:20px;">
+      <button class="btn" type="submit">Enregistrer les modifications</button>
+      <a class="btn secondary" href="/admin/categories.php">Retour</a>
+    </p>
   </form>
 </div>
 
-<div class="card" style="border: 1px solid #f44336;">
-  <h2 style="color: #f44336; margin-top:0;">Zone dangereuse</h2>
-  <form method="post" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer définitivement cet article ? Cette action est irréversible.');">
+<div class="card" style="margin-top:30px;">
+  <h2>Zone Dangereuse</h2>
+  <form method="post" onsubmit="return confirm('Supprimer définitivement cette catégorie ?');">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
     <input type="hidden" name="delete" value="1">
-    <button class="btn danger" type="submit" style="background: #f44336;">🗑️ Supprimer l'article</button>
+    <button class="btn danger" type="submit">Supprimer la catégorie</button>
   </form>
 </div>
 
+<div id="cropper-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#fff; padding:20px; border-radius:12px; width:90%; max-width:800px; display:flex; flex-direction:column;">
+        <h2 style="margin-top:0;">Recadrer l'image</h2>
+        <div style="width:100%; height:400px; background:#eee; margin-bottom:20px; display:flex; align-items:center; justify-content:center;">
+            <img id="image-to-crop" style="max-width:100%; max-height:100%; display:block;">
+        </div>
+        <div style="text-align:right;">
+            <button type="button" class="btn secondary" onclick="closeCropper()">Annuler</button>
+            <button type="button" class="btn" onclick="applyCrop()">Appliquer le recadrage</button>
+        </div>
+    </div>
+</div>
+
 <script>
-document.getElementById('publish-toggle').addEventListener('change', function() {
-    const lblPrive = document.getElementById('label-prive');
-    const lblPublic = document.getElementById('label-public');
-    if(this.checked) {
-        lblPrive.style.fontWeight = 'normal'; lblPrive.style.color = '#999';
-        lblPublic.style.fontWeight = 'bold'; lblPublic.style.color = '#4CAF50';
-    } else {
-        lblPrive.style.fontWeight = 'bold'; lblPrive.style.color = '#333';
-        lblPublic.style.fontWeight = 'normal'; lblPublic.style.color = '#999';
+let cropper;
+const modal = document.getElementById('cropper-modal');
+const imageToCrop = document.getElementById('image-to-crop');
+const previewImg = document.getElementById('preview-img');
+const hiddenInput = document.getElementById('cropped_image');
+
+function toggleImg() {
+    const isUpload = document.querySelector('input[name="img_type"][value="upload"]').checked;
+    document.getElementById('div-url').style.display = isUpload ? 'none' : 'block';
+    document.getElementById('div-upload').style.display = isUpload ? 'block' : 'none';
+}
+
+document.getElementById('upload-input').addEventListener('change', function(e) {
+    if(e.target.files && e.target.files.length > 0) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            imageToCrop.src = event.target.result;
+            modal.style.display = 'flex';
+            if(cropper) cropper.destroy();
+            cropper = new Cropper(imageToCrop, {
+                aspectRatio: 16 / 9,
+                viewMode: 1,
+                autoCropArea: 1,
+            });
+        };
+        reader.readAsDataURL(e.target.files[0]);
     }
 });
+
+function closeCropper() {
+    modal.style.display = 'none';
+    document.getElementById('upload-input').value = '';
+}
+
+function applyCrop() {
+    const canvas = cropper.getCroppedCanvas({ width: 800, height: 450 });
+    const base64 = canvas.toDataURL('image/jpeg', 0.85);
+    
+    hiddenInput.value = base64;
+    previewImg.src = base64;
+    document.getElementById('preview-container').style.display = 'block';
+    
+    modal.style.display = 'none';
+}
 </script>
 
-<script src="https://cdn.tiny.cloud/1/1dug8qkolte5l18uwjdmjarp7qaucozlzjg9xyn6dvcfocms/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
-<script>
-tinymce.init({
-  selector: '#content_html',
-  height: 500,
-  plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table wordcount help quickbars autoresize',
-  toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image media table | removeformat code fullscreen',
-  menubar: 'file edit view insert format tools table help',
-  images_upload_url: '/admin/upload-image.php',
-  automatic_uploads: true,
-  images_reuse_filename: false,
-  image_title: true,
-  image_caption: true,
-  image_advtab: true,
-  object_resizing: 'img',
-  quickbars_selection_toolbar: 'bold italic underline | fontfamily fontsize | quicklink h2 h3 blockquote',
-  content_style: "body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 16px; line-height: 1.6; } img { max-width: 100%; height: auto; } img.align-left { float:left; margin:0 16px 10px 0; } img.align-right { float:right; margin:0 0 10px 16px; } img.centered { display:block; margin: 10px auto; }",
-  style_formats: [
-    { title: 'Titre Premium', block: 'h2', styles: { color: '#102947' } },
-    { title: 'Sous titre', block: 'h3', styles: { color: '#184e77' } },
-    { title: 'Image Gauche', selector: 'img', classes: 'align-left' },
-    { title: 'Image Droite', selector: 'img', classes: 'align-right' },
-    { title: 'Image Centree', selector: 'img', classes: 'centered' }
-  ]
-});
-</script>
 <?php require dirname(__DIR__) . '/_footer.php'; ?>
