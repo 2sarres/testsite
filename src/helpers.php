@@ -107,11 +107,12 @@ function db_install(PDO $pdo): void
     );
 
     // MIGRATION SÉCURISÉE : Ajout des colonnes Prénom/Nom si elles n'existent pas
-    try { $pdo->query("SELECT first_name FROM users LIMIT 1"); } catch (Exception $e) {
-        try { $pdo->exec("ALTER TABLE users ADD COLUMN first_name TEXT DEFAULT ''"); } catch (Exception $ex) {}
+    // Utilisation de \Throwable pour éviter le conflit avec PHPMailer\Exception
+    try { $pdo->query("SELECT first_name FROM users LIMIT 1"); } catch (\Throwable $e) {
+        try { $pdo->exec("ALTER TABLE users ADD COLUMN first_name TEXT DEFAULT ''"); } catch (\Throwable $ex) {}
     }
-    try { $pdo->query("SELECT last_name FROM users LIMIT 1"); } catch (Exception $e) {
-        try { $pdo->exec("ALTER TABLE users ADD COLUMN last_name TEXT DEFAULT ''"); } catch (Exception $ex) {}
+    try { $pdo->query("SELECT last_name FROM users LIMIT 1"); } catch (\Throwable $e) {
+        try { $pdo->exec("ALTER TABLE users ADD COLUMN last_name TEXT DEFAULT ''"); } catch (\Throwable $ex) {}
     }
 
     $pdo->exec(
@@ -160,8 +161,8 @@ function db_install(PDO $pdo): void
     );
 
     // Migration du rôle pour admin_invites
-    try { $pdo->query("SELECT role FROM admin_invites LIMIT 1"); } catch (Exception $e) {
-        try { $pdo->exec("ALTER TABLE admin_invites ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'"); } catch (Exception $ex) {}
+    try { $pdo->query("SELECT role FROM admin_invites LIMIT 1"); } catch (\Throwable $e) {
+        try { $pdo->exec("ALTER TABLE admin_invites ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'"); } catch (\Throwable $ex) {}
     }
 
     if ((int)$pdo->query("SELECT COUNT(*) FROM categories")->fetchColumn() === 0) {
