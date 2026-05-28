@@ -170,7 +170,7 @@ $isPublished = ((int)$article['published'] === 1);
     <textarea id="content_html" name="content_html" rows="12"><?= e((string)$article['content_html']) ?></textarea>
     
     <div class="visibility-container">
-        <span class="visibility-label">👁️ Visibilité de l'article :</span>
+        <span class="visibility-label">Visibilité de l'article :</span>
         <div class="switch-wrapper">
             <span class="state-text state-prive" id="label-prive" style="<?= !$isPublished ? 'font-weight:bold; color:#333;' : 'font-weight:normal; color:#999;' ?>">Privé (Brouillon)</span>
             <label class="switch">
