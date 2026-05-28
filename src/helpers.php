@@ -76,8 +76,11 @@ function require_login(): array
 function require_admin(): array
 {
     $u = require_login();
-    // Plus de blocage strict 'admin' ici, les pages sensibles 
-    // feront elles-mêmes la vérification (ex: users.php, invites.php)
+    // Les éditeurs et les admins peuvent accéder à l'interface globale.
+    // Les restrictions spécifiques (ex: gestion utilisateurs) se font sur les pages concernées.
+    if (!in_array($u['role'] ?? '', ['admin', 'editor'])) {
+        http_response_code(403); echo "Accès refusé. Rôle non autorisé."; exit;
+    }
     return $u;
 }
 
@@ -99,20 +102,25 @@ function db_install(PDO $pdo): void
         "CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'editor', 
-            first_name TEXT DEFAULT '',
-            last_name TEXT DEFAULT '',
-            created_at TEXT NOT NULL
+            role TEXT NOT NULL DEFAULT 'editor', created_at TEXT NOT NULL
         )"
     );
 
-    // MIGRATION SÉCURISÉE : Ajout des colonnes Prénom/Nom si elles n'existent pas
-    // Utilisation de \Throwable pour éviter le conflit avec PHPMailer\Exception
+    // MIGRATION SÉCURISÉE : Ajout des colonnes de récupération de mot de passe et profil
     try { $pdo->query("SELECT first_name FROM users LIMIT 1"); } catch (\Throwable $e) {
         try { $pdo->exec("ALTER TABLE users ADD COLUMN first_name TEXT DEFAULT ''"); } catch (\Throwable $ex) {}
     }
     try { $pdo->query("SELECT last_name FROM users LIMIT 1"); } catch (\Throwable $e) {
         try { $pdo->exec("ALTER TABLE users ADD COLUMN last_name TEXT DEFAULT ''"); } catch (\Throwable $ex) {}
+    }
+    try { $pdo->query("SELECT is_active FROM users LIMIT 1"); } catch (\Throwable $e) {
+        try { $pdo->exec("ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"); } catch (\Throwable $ex) {}
+    }
+    try { $pdo->query("SELECT reset_token FROM users LIMIT 1"); } catch (\Throwable $e) {
+        try { $pdo->exec("ALTER TABLE users ADD COLUMN reset_token TEXT DEFAULT NULL"); } catch (\Throwable $ex) {}
+    }
+    try { $pdo->query("SELECT reset_expires_at FROM users LIMIT 1"); } catch (\Throwable $e) {
+        try { $pdo->exec("ALTER TABLE users ADD COLUMN reset_expires_at TEXT DEFAULT NULL"); } catch (\Throwable $ex) {}
     }
 
     $pdo->exec(
@@ -160,17 +168,9 @@ function db_install(PDO $pdo): void
         )"
     );
 
-    // Migration du rôle pour admin_invites
-    try { $pdo->query("SELECT role FROM admin_invites LIMIT 1"); } catch (\Throwable $e) {
-        try { $pdo->exec("ALTER TABLE admin_invites ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'"); } catch (\Throwable $ex) {}
-    }
-
     if ((int)$pdo->query("SELECT COUNT(*) FROM categories")->fetchColumn() === 0) {
         categories_seed_defaults($pdo);
     }
-
-    $pdo->exec("UPDATE categories SET accent_img = 'https://picsum.photos/800/600?random=' || id WHERE accent_img LIKE '%unsplash%'");
-    $pdo->exec("UPDATE articles SET cover_image = 'https://picsum.photos/800/600?random=' || id WHERE cover_image LIKE '%unsplash%'");
 }
 
 function categories_seed_defaults(PDO $pdo): void
@@ -294,56 +294,64 @@ function card_excerpt_preview(string $excerpt, string $contentHtml): string
     return $t;
 }
 
-function has_any_user(PDO $pdo): bool
-{
-    $stmt = $pdo->query("SELECT COUNT(*) AS c FROM users");
-    $row = $stmt->fetch();
-    return ((int)($row['c'] ?? 0)) > 0;
-}
-
-// AJOUT DES PARAMÈTRES FIRST_NAME ET LAST_NAME
-function create_user(PDO $pdo, string $email, string $password, string $role = 'editor', string $firstName = '', string $lastName = ''): int
-{
-    $stmt = $pdo->prepare(
-        "INSERT INTO users(email, password_hash, role, first_name, last_name, created_at)
-         VALUES(:email, :password_hash, :role, :first_name, :last_name, :created_at)"
-    );
-    $stmt->execute([
-        ':email' => mb_strtolower(trim($email), 'UTF-8'),
-        ':password_hash' => password_hash_secure($password),
-        ':role' => $role,
-        ':first_name' => trim($firstName),
-        ':last_name' => trim($lastName),
-        ':created_at' => date('c'),
-    ]);
-    return (int)$pdo->lastInsertId();
-}
-
 function get_user_by_email(PDO $pdo, string $email): ?array
 {
-    $stmt = $pdo->prepare("SELECT id, email, password_hash, role, first_name, last_name FROM users WHERE email = :email LIMIT 1");
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = :email LIMIT 1");
     $stmt->execute([':email' => mb_strtolower(trim($email), 'UTF-8')]);
-    $row = $stmt->fetch();
-    return $row ?: null;
-}
-
-function get_user_by_id(PDO $pdo, int $id): ?array
-{
-    $stmt = $pdo->prepare("SELECT id, email, role, first_name, last_name, created_at FROM users WHERE id = :id LIMIT 1");
-    $stmt->execute([':id' => $id]);
     $row = $stmt->fetch();
     return $row ?: null;
 }
 
 function get_all_users(PDO $pdo): array
 {
-    return $pdo->query("SELECT id, email, role, first_name, last_name, created_at FROM users ORDER BY created_at DESC")->fetchAll();
+    return $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll();
 }
 
 function delete_user(PDO $pdo, int $userId): bool
 {
     $stmt = $pdo->prepare("DELETE FROM users WHERE id = :id");
     return $stmt->execute([':id' => $userId]);
+}
+
+// ==== GESTION DES MOTS DE PASSE =====
+
+function generate_password_reset(PDO $pdo, string $email): ?string
+{
+    $user = get_user_by_email($pdo, $email);
+    if (!$user) return null;
+    
+    $token = bin2hex(random_bytes(32));
+    $expires = date('c', time() + 3600); // Expire dans 1 heure
+    
+    $stmt = $pdo->prepare("UPDATE users SET reset_token = :token, reset_expires_at = :expires WHERE id = :id");
+    $stmt->execute([':token' => $token, ':expires' => $expires, ':id' => $user['id']]);
+    
+    return $token;
+}
+
+function verify_password_reset_token(PDO $pdo, string $token): ?array
+{
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE reset_token = :token AND reset_expires_at > datetime('now') LIMIT 1");
+    $stmt->execute([':token' => $token]);
+    return $stmt->fetch() ?: null;
+}
+
+function update_password_with_token(PDO $pdo, string $token, string $newPassword): bool
+{
+    $user = verify_password_reset_token($pdo, $token);
+    if (!$user) return false;
+    
+    $hash = password_hash_secure($newPassword);
+    $stmt = $pdo->prepare("UPDATE users SET password_hash = :hash, reset_token = NULL, reset_expires_at = NULL WHERE id = :id");
+    return $stmt->execute([':hash' => $hash, ':id' => $user['id']]);
+}
+
+// ==== GESTION DES EMAILS ADMIN =====
+function get_all_admin_emails(PDO $pdo): array
+{
+    // On ne récupère que les emails des administrateurs actifs
+    $stmt = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND COALESCE(is_active, 1) = 1");
+    return $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
 }
 
 function make_unique_slug(PDO $pdo, string $title, ?int $excludeId = null): string
@@ -385,113 +393,4 @@ function validate_uploaded_image(array $file): ?string
     $name = date('Ymd_His') . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
     return $name;
 }
-
-function upload_error_message(int $errorCode): string
-{
-    if ($errorCode === UPLOAD_ERR_INI_SIZE || $errorCode === UPLOAD_ERR_FORM_SIZE) return "Image trop volumineuse (max 10 Mo).";
-    if ($errorCode === UPLOAD_ERR_PARTIAL) return "Upload interrompu, reessaie.";
-    if ($errorCode === UPLOAD_ERR_NO_FILE) return "Aucun fichier envoye.";
-    if ($errorCode === UPLOAD_ERR_NO_TMP_DIR || $errorCode === UPLOAD_ERR_CANT_WRITE || $errorCode === UPLOAD_ERR_EXTENSION) return "Erreur serveur pendant l'upload.";
-    return "Image invalide. Formats acceptes: JPG, PNG, GIF, WEBP.";
-}
-
-function process_base64_upload(string $base64Data): ?string
-{
-    if (preg_match('/^data:image\/(\w+);base64,/', $base64Data, $type)) {
-        $data = substr($base64Data, strpos($base64Data, ',') + 1);
-        $type = strtolower($type[1]);
-        $data = base64_decode($data);
-        if ($data !== false) {
-            $ext = $type === 'jpeg' ? 'jpg' : $type;
-            $filename = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '_crop.' . $ext;
-            $target = dirname(__DIR__) . '/public/uploads/' . $filename;
-            file_put_contents($target, $data);
-            return '/uploads/' . $filename;
-        }
-    }
-    return null;
-}
-
-// ===== FONCTIONS POUR LES INVITATIONS (ADMIN OU ÉDITEUR) =====
-
-function create_invite(PDO $pdo, int $createdBy, string $role = 'admin', int $durationMinutes = 60): string
-{
-    $token = bin2hex(random_bytes(32));
-    $expiresAt = date('c', time() + ($durationMinutes * 60));
-    
-    $stmt = $pdo->prepare(
-        "INSERT INTO admin_invites (token, created_by, role, created_at, expires_at)
-         VALUES (:token, :created_by, :role, :created_at, :expires_at)"
-    );
-    $stmt->execute([
-        ':token' => $token,
-        ':created_by' => $createdBy,
-        ':role' => $role,
-        ':created_at' => date('c'),
-        ':expires_at' => $expiresAt,
-    ]);
-    
-    return $token;
-}
-
-function get_invite_by_token(PDO $pdo, string $token): ?array
-{
-    $stmt = $pdo->prepare(
-        "SELECT * FROM admin_invites WHERE token = :token AND used = 0 AND expires_at > datetime('now') LIMIT 1"
-    );
-    $stmt->execute([':token' => $token]);
-    return $stmt->fetch() ?: null;
-}
-
-function mark_invite_used(PDO $pdo, int $inviteId, string $email): void
-{
-    $stmt = $pdo->prepare(
-        "UPDATE admin_invites SET used = 1, used_at = :used_at, used_by_email = :email WHERE id = :id"
-    );
-    $stmt->execute([
-        ':used_at' => date('c'),
-        ':email' => $email,
-        ':id' => $inviteId,
-    ]);
-}
-
-function get_invites_by_role(PDO $pdo, string $role, bool $activeOnly = true): array
-{
-    if ($activeOnly) {
-        $stmt = $pdo->prepare(
-            "SELECT ai.*, u.email as created_by_email 
-             FROM admin_invites ai
-             LEFT JOIN users u ON ai.created_by = u.id
-             WHERE ai.role = :role AND ai.used = 0 AND ai.expires_at > datetime('now')
-             ORDER BY ai.created_at DESC"
-        );
-    } else {
-        $stmt = $pdo->prepare(
-            "SELECT ai.*, u.email as created_by_email 
-             FROM admin_invites ai
-             LEFT JOIN users u ON ai.created_by = u.id
-             WHERE ai.role = :role
-             ORDER BY ai.created_at DESC"
-        );
-    }
-    $stmt->execute([':role' => $role]);
-    return $stmt->fetchAll();
-}
-
-function delete_invite(PDO $pdo, int $inviteId): void
-{
-    $stmt = $pdo->prepare("DELETE FROM admin_invites WHERE id = :id");
-    $stmt->execute([':id' => $inviteId]);
-}
-
-function get_admin_invites(PDO $pdo, bool $activeOnly = true): array
-{
-    return get_invites_by_role($pdo, 'admin', $activeOnly);
-}
-
-function create_admin_invite(PDO $pdo, int $createdBy, int $durationMinutes = 60): string
-{
-    return create_invite($pdo, $createdBy, 'admin', $durationMinutes);
-}
-
 ?>
