@@ -134,6 +134,21 @@ function db_install(PDO $pdo): void
         )"
     );
 
+    // Table pour les invitations admin
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS admin_invites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT NOT NULL UNIQUE,
+            created_by INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            used INTEGER NOT NULL DEFAULT 0,
+            used_at TEXT,
+            used_by_email TEXT,
+            FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+        )"
+    );
+
     if ((int)$pdo->query("SELECT COUNT(*) FROM categories")->fetchColumn() === 0) {
         categories_seed_defaults($pdo);
     }
@@ -296,6 +311,25 @@ function get_user_by_email(PDO $pdo, string $email): ?array
     return $row ?: null;
 }
 
+function get_user_by_id(PDO $pdo, int $id): ?array
+{
+    $stmt = $pdo->prepare("SELECT id, email, role, created_at FROM users WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $id]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function get_all_users(PDO $pdo): array
+{
+    return $pdo->query("SELECT id, email, role, created_at FROM users ORDER BY created_at DESC")->fetchAll();
+}
+
+function delete_user(PDO $pdo, int $userId): bool
+{
+    $stmt = $pdo->prepare("DELETE FROM users WHERE id = :id");
+    return $stmt->execute([':id' => $userId]);
+}
+
 function make_unique_slug(PDO $pdo, string $title, ?int $excludeId = null): string
 {
     $base = normalize_slug($title);
@@ -360,4 +394,73 @@ function process_base64_upload(string $base64Data): ?string
         }
     }
     return null;
+}
+
+// ===== FONCTIONS POUR LES INVITATIONS ADMIN =====
+
+function create_admin_invite(PDO $pdo, int $createdBy, int $durationMinutes = 60): string
+{
+    $token = bin2hex(random_bytes(32));
+    $expiresAt = date('c', time() + ($durationMinutes * 60));
+    
+    $stmt = $pdo->prepare(
+        "INSERT INTO admin_invites (token, created_by, created_at, expires_at)
+         VALUES (:token, :created_by, :created_at, :expires_at)"
+    );
+    $stmt->execute([
+        ':token' => $token,
+        ':created_by' => $createdBy,
+        ':created_at' => date('c'),
+        ':expires_at' => $expiresAt,
+    ]);
+    
+    return $token;
+}
+
+function get_invite_by_token(PDO $pdo, string $token): ?array
+{
+    $stmt = $pdo->prepare(
+        "SELECT * FROM admin_invites WHERE token = :token AND used = 0 AND expires_at > datetime('now') LIMIT 1"
+    );
+    $stmt->execute([':token' => $token]);
+    return $stmt->fetch() ?: null;
+}
+
+function mark_invite_used(PDO $pdo, int $inviteId, string $email): void
+{
+    $stmt = $pdo->prepare(
+        "UPDATE admin_invites SET used = 1, used_at = :used_at, used_by_email = :email WHERE id = :id"
+    );
+    $stmt->execute([
+        ':used_at' => date('c'),
+        ':email' => $email,
+        ':id' => $inviteId,
+    ]);
+}
+
+function get_admin_invites(PDO $pdo, bool $activeOnly = true): array
+{
+    if ($activeOnly) {
+        $stmt = $pdo->prepare(
+            "SELECT ai.*, u.email as created_by_email 
+             FROM admin_invites ai
+             LEFT JOIN users u ON ai.created_by = u.id
+             WHERE ai.used = 0 AND ai.expires_at > datetime('now')
+             ORDER BY ai.created_at DESC"
+        );
+    } else {
+        $stmt = $pdo->prepare(
+            "SELECT ai.*, u.email as created_by_email 
+             FROM admin_invites ai
+             LEFT JOIN users u ON ai.created_by = u.id
+             ORDER BY ai.created_at DESC"
+        );
+    }
+    return $stmt->execute() ? $stmt->fetchAll() : [];
+}
+
+function delete_invite(PDO $pdo, int $inviteId): void
+{
+    $stmt = $pdo->prepare("DELETE FROM admin_invites WHERE id = :id");
+    $stmt->execute([':id' => $inviteId]);
 }
