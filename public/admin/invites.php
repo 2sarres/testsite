@@ -6,22 +6,15 @@ require_once __DIR__ . '/../_header.php';
 db_install($pdo);
 $user = require_admin();
 
-// Restriction aux seuls administrateurs
-if (($user['role'] ?? 'admin') !== 'admin') {
-    http_response_code(403);
-    echo '<div class="card"><h1>Accès interdit</h1><p>Seuls les administrateurs peuvent générer des invitations.</p></div>';
-    require __DIR__ . '/../_footer.php';
-    exit;
-}
-
-// SÉCURITÉ ANTI-PAGE BLANCHE : Crée la colonne 'role' si elle n'existe pas encore dans la table
+// SÉCURITÉ ANTI-PAGE BLANCHE : Répare la base de données SQLite
+// Ajoute la colonne 'role' à 'admin_invites' si elle n'existe pas encore.
 try {
-    $pdo->query("SELECT role FROM admin_invitations LIMIT 1");
+    $pdo->query("SELECT role FROM admin_invites LIMIT 1");
 } catch (Exception $e) {
     try {
-        $pdo->exec("ALTER TABLE admin_invitations ADD COLUMN role VARCHAR(20) DEFAULT 'admin'");
+        $pdo->exec("ALTER TABLE admin_invites ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
     } catch (Exception $ex) {
-        // Échec silencieux si déjà existant ou autre configuration
+        // Échec silencieux
     }
 }
 
@@ -41,16 +34,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_invite'])) {
     $duration = (int)($_POST['duration'] ?? 60);
     $duration = max(10, min(1440, $duration)); // Entre 10 et 1440 minutes
     
+    // Récupérer le rôle choisi
     $role = trim($_POST['role'] ?? 'admin');
     if (!in_array($role, ['admin', 'editor'], true)) {
         $role = 'admin';
     }
     
-    $token = create_admin_invite($pdo, (int)$user['id'], $duration);
-    
-    // Assignation du rôle à l'invitation dans la base de données
-    $stmt = $pdo->prepare("UPDATE admin_invitations SET role = ? WHERE token = ?");
-    $stmt->execute([$role, $token]);
+    // Utilise la fonction create_invite de ton helpers.php qui gère déjà les rôles
+    $token = create_invite($pdo, (int)$user['id'], $role, $duration);
     
     $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . $_SERVER['HTTP_HOST'];
     $inviteLink = $baseUrl . '/register-admin.php?token=' . $token;
@@ -60,8 +51,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_invite'])) {
     redirect('/admin/invites.php');
 }
 
-// Récupérer les invitations actives
-$invites = get_admin_invites($pdo, true);
+// Récupérer TOUTES les invitations actives (Admin et Éditeur)
+$stmt = $pdo->prepare(
+    "SELECT ai.*, u.email as created_by_email 
+     FROM admin_invites ai
+     LEFT JOIN users u ON ai.created_by = u.id
+     WHERE ai.used = 0 AND ai.expires_at > datetime('now')
+     ORDER BY ai.created_at DESC"
+);
+$stmt->execute();
+$invites = $stmt->fetchAll();
+
 $flashes = flash_get_all();
 $lastInviteLink = $_SESSION['last_invite_link'] ?? null;
 unset($_SESSION['last_invite_link']);
