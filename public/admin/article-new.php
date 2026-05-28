@@ -89,25 +89,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 <style>
-/* CSS ULTRA-PRIORITAIRE POUR FORCER LE SLIDER ET ÉCRASER LE THÈME GLOBAL */
-.visibility-container { background: #f9f9f9; padding: 1.5rem; border-radius: 8px; border: 1px solid #e0e0e0; margin-bottom: 1.5rem; }
-.visibility-label { font-weight: bold; display: block; margin-bottom: 15px; color: #333; }
+/* CSS ULTRA-PRIORITAIRE POUR LE SLIDER - VERSION ÉPURÉE */
+.visibility-container { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 1rem 0; margin-top: 1rem; margin-bottom: 1.5rem; border-top: 1px solid #eee; border-bottom: 1px solid #eee; }
+.visibility-label { font-weight: bold; margin: 0; color: #333; font-size: 1.05rem; }
 .switch-wrapper { display: flex; align-items: center; gap: 15px; }
 
-.switch { position: relative !important; display: inline-block !important; width: 60px !important; height: 34px !important; margin: 0 !important; padding: 0 !important; }
-/* On cache la checkbox de base */
+.switch { position: relative !important; display: inline-block !important; width: 50px !important; height: 28px !important; margin: 0 !important; padding: 0 !important; }
 .switch input[type="checkbox"] { opacity: 0 !important; width: 0 !important; height: 0 !important; position: absolute !important; margin: 0 !important; pointer-events: none !important; }
 
-/* On crée la glissière */
 .slider { position: absolute !important; cursor: pointer !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; background-color: #ccc !important; transition: .4s !important; border-radius: 34px !important; display: block !important; border: none !important; margin: 0 !important; padding: 0 !important; }
-/* On crée la bille blanche */
-.slider:before { position: absolute !important; content: "" !important; height: 26px !important; width: 26px !important; left: 4px !important; bottom: 4px !important; background-color: white !important; transition: .4s !important; border-radius: 50% !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important; margin: 0 !important; }
+.slider:before { position: absolute !important; content: "" !important; height: 20px !important; width: 20px !important; left: 4px !important; bottom: 4px !important; background-color: white !important; transition: .4s !important; border-radius: 50% !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important; margin: 0 !important; }
 
-/* États cochés */
 .switch input[type="checkbox"]:checked + .slider { background-color: #4CAF50 !important; }
-.switch input[type="checkbox"]:checked + .slider:before { transform: translateX(26px) !important; }
+.switch input[type="checkbox"]:checked + .slider:before { transform: translateX(22px) !important; }
 
-.state-text { transition: 0.3s; font-size: 1rem; }
+.state-text { transition: 0.3s; font-size: 0.95rem; }
 </style>
 
 <div class="card">
@@ -117,18 +113,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <?php endforeach; ?>
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-    
-    <div class="visibility-container">
-        <label class="visibility-label">👁️ Visibilité de l'article :</label>
-        <div class="switch-wrapper">
-            <span class="state-text state-prive" id="label-prive" style="<?= !$published ? 'font-weight:bold; color:#333;' : 'font-weight:normal; color:#999;' ?>">Privé (Brouillon)</span>
-            <label class="switch">
-                <input type="checkbox" name="published" value="1" id="publish-toggle" <?= $published ? 'checked' : '' ?>>
-                <span class="slider"></span>
-            </label>
-            <span class="state-text state-public" id="label-public" style="<?= $published ? 'font-weight:bold; color:#4CAF50;' : 'font-weight:normal; color:#999;' ?>">Publique (En ligne)</span>
-        </div>
-    </div>
     
     <label>Catégorie</label>
     <select name="category_id">
@@ -152,7 +136,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <label>Contenu</label>
     <textarea id="content_html" name="content_html" rows="12"><?= e($contentHtml) ?></textarea>
     
-    <br><br>
+    <div class="visibility-container">
+        <span class="visibility-label">👁️ Visibilité de l'article :</span>
+        <div class="switch-wrapper">
+            <span class="state-text state-prive" id="label-prive" style="<?= !$published ? 'font-weight:bold; color:#333;' : 'font-weight:normal; color:#999;' ?>">Privé (Brouillon)</span>
+            <label class="switch">
+                <input type="checkbox" name="published" value="1" id="publish-toggle" <?= $published ? 'checked' : '' ?>>
+                <span class="slider"></span>
+            </label>
+            <span class="state-text state-public" id="label-public" style="<?= $published ? 'font-weight:bold; color:#4CAF50;' : 'font-weight:normal; color:#999;' ?>">Publique (En ligne)</span>
+        </div>
+    </div>
+    
     <button class="btn" type="submit" style="background:#4CAF50; color: white;">📝 Créer l'article</button>
     <a class="btn secondary" href="/admin/index.php">Annuler</a>
   </form>
