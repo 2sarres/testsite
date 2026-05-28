@@ -1,0 +1,144 @@
+<?php
+declare(strict_types=1);
+$pageTitle = 'Générer une invitation admin';
+require_once __DIR__ . '/../_header.php';
+
+db_install($pdo);
+$user = require_admin();
+
+// Traiter la suppression d'une invitation
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_invite'])) {
+    csrf_verify_or_fail();
+    $inviteId = (int)$_POST['delete_invite'];
+    delete_invite($pdo, $inviteId);
+    flash_set('success', 'Invitation supprimée.');
+    redirect('/admin/invites.php');
+}
+
+// Traiter la génération d'une nouvelle invitation
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_invite'])) {
+    csrf_verify_or_fail();
+    
+    $duration = (int)($_POST['duration'] ?? 60);
+    $duration = max(10, min(1440, $duration)); // Entre 10 et 1440 minutes
+    
+    $token = create_admin_invite($pdo, (int)$user['id'], $duration);
+    
+    $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . $_SERVER['HTTP_HOST'];
+    $inviteLink = $baseUrl . '/register-admin.php?token=' . $token;
+    
+    flash_set('success', "Invitation générée avec succès ! Elle expire dans $duration minutes.");
+    $_SESSION['last_invite_link'] = $inviteLink;
+    redirect('/admin/invites.php');
+}
+
+// Récupérer les invitations actives
+$invites = get_admin_invites($pdo, true);
+$flashes = flash_get_all();
+$lastInviteLink = $_SESSION['last_invite_link'] ?? null;
+unset($_SESSION['last_invite_link']);
+?>
+
+<div class="card">
+    <h1>Générer une invitation admin</h1>
+    
+    <?php foreach ($flashes as $flash): ?>
+        <div class="flash <?= e($flash['type']) ?>">
+            <?= e($flash['message']) ?>
+        </div>
+    <?php endforeach; ?>
+
+    <form method="post" style="margin-bottom: 2rem; background: #f9f9f9; padding: 1rem; border-radius: 4px;">
+        <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+        
+        <label for="duration">Durée de validité (minutes)</label>
+        <input type="number" id="duration" name="duration" value="60" min="10" max="1440" required style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+        <small style="display: block; margin-top: 0.3rem; color: #666;">Entre 10 et 1440 minutes (24 heures max)</small>
+        
+        <button class="btn" type="submit" name="generate_invite" style="background: #4CAF50; margin-top: 1rem;">🔗 Générer une invitation</button>
+    </form>
+
+    <?php if ($lastInviteLink): ?>
+        <div style="background: #e8f5e9; padding: 1.5rem; border-radius: 4px; margin-bottom: 2rem; border-left: 4px solid #4CAF50;">
+            <h3 style="margin-top: 0; color: #2e7d32;">✓ Lien d'invitation généré</h3>
+            <p style="word-break: break-all; margin: 1rem 0; background: white; padding: 0.7rem; border-radius: 3px; border: 1px solid #c8e6c9;">
+                <code><?= e($lastInviteLink) ?></code>
+            </p>
+            <button onclick="navigator.clipboard.writeText('<?= addslashes($lastInviteLink) ?>'); alert('Lien copié dans le presse-papiers !');" class="btn" style="background: #4CAF50; margin-top: 0.5rem;">
+                📋 Copier le lien
+            </button>
+            <p style="margin-top: 1rem; margin-bottom: 0; font-size: 0.9rem; color: #558b2f;">
+                📧 Partage ce lien avec la personne qui doit créer son compte administrateur.
+            </p>
+        </div>
+    <?php endif; ?>
+
+    <h2 style="margin-top: 2rem;">Invitations actives (<?= count($invites) ?>)</h2>
+    
+    <?php if (empty($invites)): ?>
+        <p style="color: #666; background: #f5f5f5; padding: 1rem; border-radius: 4px;">Aucune invitation active actuellement.</p>
+    <?php else: ?>
+        <div style="overflow-x: auto;">
+            <table border="1" style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+                <thead>
+                    <tr style="background: #f5f5f5;">
+                        <th style="padding: 0.7rem; text-align: left;">Créée par</th>
+                        <th style="padding: 0.7rem; text-align: left;">Créée le</th>
+                        <th style="padding: 0.7rem; text-align: left;">Expire le</th>
+                        <th style="padding: 0.7rem; text-align: left;">Token</th>
+                        <th style="padding: 0.7rem; text-align: left;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($invites as $invite): 
+                        $createdAt = new DateTime($invite['created_at']);
+                        $expiresAt = new DateTime($invite['expires_at']);
+                        $now = new DateTime();
+                        $remaining = $expiresAt->diff($now);
+                    ?>
+                        <tr style="border-bottom: 1px solid #ddd;">
+                            <td style="padding: 0.7rem;">
+                                <strong><?= e($invite['created_by_email'] ?? 'Système') ?></strong>
+                            </td>
+                            <td style="padding: 0.7rem; font-size: 0.9rem;">
+                                <?= date('d/m/Y H:i', strtotime($invite['created_at'])) ?>
+                            </td>
+                            <td style="padding: 0.7rem; font-size: 0.9rem;">
+                                <strong><?= date('d/m/Y H:i', strtotime($invite['expires_at'])) ?></strong>
+                                <br>
+                                <span style="color: <?= $remaining->h < 1 ? '#f44336' : '#666' ?>; font-size: 0.8rem;">
+                                    <?php
+                                    if ($remaining->d > 0) {
+                                        echo "Expire dans " . $remaining->d . "j " . $remaining->h . "h";
+                                    } else {
+                                        echo "Expire dans " . $remaining->h . "h " . $remaining->i . "m";
+                                    }
+                                    ?>
+                                </span>
+                            </td>
+                            <td style="padding: 0.7rem;">
+                                <code style="font-size: 0.8rem; background: #f0f0f0; padding: 3px 6px; border-radius: 3px; word-break: break-all;">
+                                    <?= e(substr($invite['token'], 0, 16)) ?>...
+                                </code>
+                            </td>
+                            <td style="padding: 0.7rem;">
+                                <form method="post" style="display: inline;">
+                                    <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+                                    <input type="hidden" name="delete_invite" value="<?= (int)$invite['id'] ?>">
+                                    <button type="submit" class="btn" style="background: #f44336; color: white; padding: 0.4rem 0.8rem; font-size: 0.9rem;" onclick="return confirm('Supprimer cette invitation ?')">Supprimer</button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+
+    <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid #ddd; display: flex; gap: 1rem; flex-wrap: wrap;">
+        <a href="/admin/users.php" class="btn" style="background: #2196F3;">👥 Gérer les utilisateurs</a>
+        <a href="/admin/index.php" class="btn" style="background: #2196F3;">← Retour au tableau de bord</a>
+    </div>
+</div>
+
+<?php require __DIR__ . '/../_footer.php'; ?>
