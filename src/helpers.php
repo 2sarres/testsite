@@ -76,9 +76,8 @@ function require_login(): array
 function require_admin(): array
 {
     $u = require_login();
-    if (($u['role'] ?? '') !== 'admin') {
-        http_response_code(403); echo "Accès refusé."; exit;
-    }
+    // Plus de blocage strict 'admin' ici, les pages sensibles 
+    // feront elles-mêmes la vérification (ex: users.php, invites.php)
     return $u;
 }
 
@@ -100,9 +99,20 @@ function db_install(PDO $pdo): void
         "CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'editor', created_at TEXT NOT NULL
+            role TEXT NOT NULL DEFAULT 'editor', 
+            first_name TEXT DEFAULT '',
+            last_name TEXT DEFAULT '',
+            created_at TEXT NOT NULL
         )"
     );
+
+    // MIGRATION SÉCURISÉE : Ajout des colonnes Prénom/Nom si elles n'existent pas
+    try { $pdo->query("SELECT first_name FROM users LIMIT 1"); } catch (Exception $e) {
+        try { $pdo->exec("ALTER TABLE users ADD COLUMN first_name TEXT DEFAULT ''"); } catch (Exception $ex) {}
+    }
+    try { $pdo->query("SELECT last_name FROM users LIMIT 1"); } catch (Exception $e) {
+        try { $pdo->exec("ALTER TABLE users ADD COLUMN last_name TEXT DEFAULT ''"); } catch (Exception $ex) {}
+    }
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS articles (
@@ -134,7 +144,6 @@ function db_install(PDO $pdo): void
         )"
     );
 
-    // Table pour les invitations (admin ou éditeur)
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS admin_invites (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,11 +159,15 @@ function db_install(PDO $pdo): void
         )"
     );
 
+    // Migration du rôle pour admin_invites
+    try { $pdo->query("SELECT role FROM admin_invites LIMIT 1"); } catch (Exception $e) {
+        try { $pdo->exec("ALTER TABLE admin_invites ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'"); } catch (Exception $ex) {}
+    }
+
     if ((int)$pdo->query("SELECT COUNT(*) FROM categories")->fetchColumn() === 0) {
         categories_seed_defaults($pdo);
     }
 
-    // --- NETTOYAGE UNSPLASH ---
     $pdo->exec("UPDATE categories SET accent_img = 'https://picsum.photos/800/600?random=' || id WHERE accent_img LIKE '%unsplash%'");
     $pdo->exec("UPDATE articles SET cover_image = 'https://picsum.photos/800/600?random=' || id WHERE cover_image LIKE '%unsplash%'");
 }
@@ -287,16 +300,19 @@ function has_any_user(PDO $pdo): bool
     return ((int)($row['c'] ?? 0)) > 0;
 }
 
-function create_user(PDO $pdo, string $email, string $password, string $role = 'editor'): int
+// AJOUT DES PARAMÈTRES FIRST_NAME ET LAST_NAME
+function create_user(PDO $pdo, string $email, string $password, string $role = 'editor', string $firstName = '', string $lastName = ''): int
 {
     $stmt = $pdo->prepare(
-        "INSERT INTO users(email, password_hash, role, created_at)
-         VALUES(:email, :password_hash, :role, :created_at)"
+        "INSERT INTO users(email, password_hash, role, first_name, last_name, created_at)
+         VALUES(:email, :password_hash, :role, :first_name, :last_name, :created_at)"
     );
     $stmt->execute([
         ':email' => mb_strtolower(trim($email), 'UTF-8'),
         ':password_hash' => password_hash_secure($password),
         ':role' => $role,
+        ':first_name' => trim($firstName),
+        ':last_name' => trim($lastName),
         ':created_at' => date('c'),
     ]);
     return (int)$pdo->lastInsertId();
@@ -304,7 +320,7 @@ function create_user(PDO $pdo, string $email, string $password, string $role = '
 
 function get_user_by_email(PDO $pdo, string $email): ?array
 {
-    $stmt = $pdo->prepare("SELECT id, email, password_hash, role FROM users WHERE email = :email LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, email, password_hash, role, first_name, last_name FROM users WHERE email = :email LIMIT 1");
     $stmt->execute([':email' => mb_strtolower(trim($email), 'UTF-8')]);
     $row = $stmt->fetch();
     return $row ?: null;
@@ -312,7 +328,7 @@ function get_user_by_email(PDO $pdo, string $email): ?array
 
 function get_user_by_id(PDO $pdo, int $id): ?array
 {
-    $stmt = $pdo->prepare("SELECT id, email, role, created_at FROM users WHERE id = :id LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, email, role, first_name, last_name, created_at FROM users WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch();
     return $row ?: null;
@@ -320,7 +336,7 @@ function get_user_by_id(PDO $pdo, int $id): ?array
 
 function get_all_users(PDO $pdo): array
 {
-    return $pdo->query("SELECT id, email, role, created_at FROM users ORDER BY created_at DESC")->fetchAll();
+    return $pdo->query("SELECT id, email, role, first_name, last_name, created_at FROM users ORDER BY created_at DESC")->fetchAll();
 }
 
 function delete_user(PDO $pdo, int $userId): bool
@@ -467,14 +483,14 @@ function delete_invite(PDO $pdo, int $inviteId): void
     $stmt->execute([':id' => $inviteId]);
 }
 
-// Fonction héritée pour compatibilité
 function get_admin_invites(PDO $pdo, bool $activeOnly = true): array
 {
     return get_invites_by_role($pdo, 'admin', $activeOnly);
 }
 
-// Fonction héritée pour compatibilité
 function create_admin_invite(PDO $pdo, int $createdBy, int $durationMinutes = 60): string
 {
     return create_invite($pdo, $createdBy, 'admin', $durationMinutes);
 }
+
+?>

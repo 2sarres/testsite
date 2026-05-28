@@ -2,13 +2,10 @@
 declare(strict_types=1);
 $pageTitle = 'Admin';
 require_once dirname(__DIR__) . '/_header.php';
-$user = require_admin();
 
-// Un éditeur ne peut pas accéder au tableau de bord général d'administration
-if (($user['role'] ?? 'admin') === 'editor') {
-    redirect('/admin/article-new.php');
-}
-
+// Un simple require_login() (via require_admin qui a été allégé) 
+// autorise l'accès à cette page globale aux éditeurs et aux admins.
+$user = require_admin(); 
 db_install($pdo);
 
 $rows = $pdo->query(
@@ -18,14 +15,24 @@ $rows = $pdo->query(
      LEFT JOIN categories c ON c.id = a.category_id
      ORDER BY c.sort_order ASC, a.sort_order ASC, a.created_at DESC"
 )->fetchAll();
+
+// On récupère le nom à afficher dans le message de bienvenue
+$displayName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+if ($displayName === '') {
+    $displayName = $user['email'];
+}
 ?>
 <div class="card">
   <h1>Administration</h1>
-  <p>Connecté en tant que <?= e((string)$user['email']) ?>.</p>
+  <p>Connecté en tant que <strong><?= e($displayName) ?></strong> (Rôle : <?= e(strtoupper($user['role'] ?? 'EDITOR')) ?>).</p>
   <div class="top-actions">
     <a class="btn" href="/admin/article-new.php">Nouvel article</a>
     <a class="btn secondary" href="/admin/categories.php">Catégories & ordre</a>
-    <a class="btn secondary" href="/admin/users.php" style="background: #2196F3; color: white;">👥 Gestion des utilisateurs</a>
+    
+    <?php if (($user['role'] ?? 'editor') === 'admin'): ?>
+      <a class="btn secondary" href="/admin/users.php" style="background: #2196F3; color: white;">👥 Gestion des utilisateurs</a>
+    <?php endif; ?>
+    
     <a class="btn secondary" href="/">Voir le site</a>
   </div>
 </div>

@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-$pageTitle = 'Inscription';
+$pageTitle = 'Création de compte';
 require_once __DIR__ . '/_header.php';
 
 db_install($pdo);
@@ -34,11 +34,17 @@ $success = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify_or_fail();
     
+    $firstName = trim($_POST['first_name'] ?? '');
+    $lastName = trim($_POST['last_name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     $password2 = $_POST['password2'] ?? '';
     
     // Validation
+    if ($firstName === '' || $lastName === '') {
+        $errors[] = 'Le prénom et le nom sont obligatoires.';
+    }
+
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Email invalide.';
     }
@@ -59,9 +65,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$errors) {
         $pdo->beginTransaction();
         try {
-            $assignedRole = $invite['role'] ?? 'admin';
+            $assignedRole = $invite['role'] ?? 'editor';
             
-            create_user($pdo, $email, $password, $assignedRole);
+            // On passe maintenant le Prénom et Nom
+            create_user($pdo, $email, $password, $assignedRole, $firstName, $lastName);
             mark_invite_used($pdo, (int)$invite['id'], $email);
             $pdo->commit();
             
@@ -75,10 +82,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $flashes = flash_get_all();
+// Affichage du rôle qui sera assigné
+$roleName = ($invite['role'] ?? 'editor') === 'admin' ? 'Administrateur' : 'Éditeur';
 ?>
 
 <div class="card" style="max-width: 500px; margin: 2rem auto;">
-    <h1 style="text-align: center;">Création de compte</h1>
+    <h1 style="text-align: center;">Création de compte (<?= $roleName ?>)</h1>
     
     <?php foreach ($flashes as $flash): ?>
         <div class="flash <?= e($flash['type']) ?>">
@@ -102,6 +111,17 @@ $flashes = flash_get_all();
         <form method="post">
             <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
             
+            <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                <div style="flex: 1;">
+                    <label for="first_name">Prénom</label>
+                    <input type="text" id="first_name" name="first_name" required value="<?= e($_POST['first_name'] ?? '') ?>" style="width: 100%; padding: 0.7rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                </div>
+                <div style="flex: 1;">
+                    <label for="last_name">Nom</label>
+                    <input type="text" id="last_name" name="last_name" required value="<?= e($_POST['last_name'] ?? '') ?>" style="width: 100%; padding: 0.7rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                </div>
+            </div>
+
             <label for="email">Adresse email</label>
             <input type="email" id="email" name="email" required value="<?= e($_POST['email'] ?? '') ?>" style="width: 100%; padding: 0.7rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
             

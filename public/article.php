@@ -6,8 +6,8 @@ db_install($pdo);
 
 $slug = trim((string)($_GET['slug'] ?? ''));
 
-// On ajoute c.slug AS cat_slug pour pouvoir générer le lien de retour
-$stmt = $pdo->prepare("SELECT a.*, u.email AS author_email, c.label AS category_label, c.slug AS cat_slug FROM articles a JOIN users u ON u.id = a.author_id LEFT JOIN categories c ON c.id = a.category_id WHERE a.slug = :slug AND a.published = 1 LIMIT 1");
+// Ajout de u.first_name et u.last_name dans la requête
+$stmt = $pdo->prepare("SELECT a.*, u.email AS author_email, u.first_name, u.last_name, c.label AS category_label, c.slug AS cat_slug FROM articles a JOIN users u ON u.id = a.author_id LEFT JOIN categories c ON c.id = a.category_id WHERE a.slug = :slug AND a.published = 1 LIMIT 1");
 $stmt->execute([':slug' => $slug]);
 $article = $stmt->fetch();
 
@@ -22,6 +22,12 @@ $backText = "← Retour à l'accueil";
 if (!empty($article['cat_slug'])) {
     $backLink = '/category.php?slug=' . urlencode((string)$article['cat_slug']);
     $backText = "← Retour à la catégorie";
+}
+
+// Définition de l'auteur : Prénom Nom, ou Email si vide
+$authorName = trim(($article['first_name'] ?? '') . ' ' . ($article['last_name'] ?? ''));
+if ($authorName === '') {
+    $authorName = $article['author_email'];
 }
 ?>
 
@@ -38,7 +44,7 @@ if (!empty($article['cat_slug'])) {
             <?= e((string)($article['category_label'] ?? 'Général')) ?>
         </p>
         <h1 class="article-hero__title"><?= e((string)$article['title']) ?></h1>
-        <p style="color:#666; font-style:italic;">Par <?= e((string)$article['author_email']) ?> · <?= date('d/m/Y', strtotime($article['created_at'])) ?></p>
+        <p style="color:#666; font-style:italic;">Par <?= e($authorName) ?> · <?= date('d/m/Y', strtotime($article['created_at'])) ?></p>
     </div>
 
     <div class="article-body">
