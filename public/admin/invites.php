@@ -1,70 +1,77 @@
 <?php
 declare(strict_types=1);
+
+// FORCER L'AFFICHAGE DES ERREURS (ANTI PAGE BLANCHE)
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
+
 $pageTitle = 'Générer une invitation';
 require_once __DIR__ . '/../_header.php';
 
-db_install($pdo);
-$user = require_admin();
-
-// SÉCURITÉ ANTI-PAGE BLANCHE : Répare la base de données SQLite
-// Ajoute la colonne 'role' à 'admin_invites' si elle n'existe pas encore.
 try {
-    $pdo->query("SELECT role FROM admin_invites LIMIT 1");
-} catch (\Throwable $e) {
+    db_install($pdo);
+    $user = require_admin();
+
+    // Sécurité : Seul l'admin principal peut voir cette page
+    if (($user['role'] ?? '') !== 'admin') {
+        echo "<div class='card'><h1>Accès refusé</h1><p>Seuls les administrateurs peuvent générer des invitations.</p><a href='/admin/index.php' class='btn'>Retour</a></div>";
+        require __DIR__ . '/../_footer.php';
+        exit;
+    }
+
+    // Migration : on s'assure que la colonne 'role' existe bien !
     try {
+        $pdo->query("SELECT role FROM admin_invites LIMIT 1");
+    } catch (\Throwable $e) {
         $pdo->exec("ALTER TABLE admin_invites ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
-    } catch (\Throwable $ex) {
-        // Échec silencieux
     }
-}
 
-// Traiter la suppression d'une invitation
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_invite'])) {
-    csrf_verify_or_fail();
-    $inviteId = (int)$_POST['delete_invite'];
-    delete_invite($pdo, $inviteId);
-    flash_set('success', 'Invitation supprimée.');
-    redirect('/admin/invites.php');
-}
-
-// Traiter la génération d'une nouvelle invitation
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_invite'])) {
-    csrf_verify_or_fail();
-    
-    $duration = (int)($_POST['duration'] ?? 60);
-    $duration = max(10, min(1440, $duration)); // Entre 10 et 1440 minutes
-    
-    // Récupérer le rôle choisi
-    $role = trim($_POST['role'] ?? 'admin');
-    if (!in_array($role, ['admin', 'editor'], true)) {
-        $role = 'admin';
+    // Traiter la suppression
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_invite'])) {
+        csrf_verify_or_fail();
+        $inviteId = (int)$_POST['delete_invite'];
+        delete_invite($pdo, $inviteId);
+        flash_set('success', 'Invitation supprimée.');
+        redirect('/admin/invites.php');
     }
-    
-    // Utilise la fonction create_invite de ton helpers.php qui gère déjà les rôles
-    $token = create_invite($pdo, (int)$user['id'], $role, $duration);
-    
-    $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . $_SERVER['HTTP_HOST'];
-    $inviteLink = $baseUrl . '/register-admin.php?token=' . $token;
-    
-    flash_set('success', "Invitation (" . strtoupper($role) . ") générée avec succès ! Elle expire dans $duration minutes.");
-    $_SESSION['last_invite_link'] = $inviteLink;
-    redirect('/admin/invites.php');
-}
 
-// Récupérer TOUTES les invitations actives (Admin et Éditeur)
-$stmt = $pdo->prepare(
-    "SELECT ai.*, u.email as created_by_email 
-     FROM admin_invites ai
-     LEFT JOIN users u ON ai.created_by = u.id
-     WHERE ai.used = 0 AND ai.expires_at > datetime('now')
-     ORDER BY ai.created_at DESC"
-);
-$stmt->execute();
-$invites = $stmt->fetchAll();
+    // Traiter la génération
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_invite'])) {
+        csrf_verify_or_fail();
+        
+        $duration = (int)($_POST['duration'] ?? 60);
+        $duration = max(10, min(1440, $duration));
+        
+        $role = trim($_POST['role'] ?? 'admin');
+        if (!in_array($role, ['admin', 'editor'], true)) {
+            $role = 'admin';
+        }
+        
+        $token = create_invite($pdo, (int)$user['id'], $role, $duration);
+        
+        $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . $_SERVER['HTTP_HOST'];
+        $inviteLink = $baseUrl . '/register-admin.php?token=' . $token;
+        
+        flash_set('success', "Invitation (" . strtoupper($role) . ") générée avec succès ! Elle expire dans $duration minutes.");
+        $_SESSION['last_invite_link'] = $inviteLink;
+        redirect('/admin/invites.php');
+    }
 
-$flashes = flash_get_all();
-$lastInviteLink = $_SESSION['last_invite_link'] ?? null;
-unset($_SESSION['last_invite_link']);
+    // Récupérer TOUTES les invitations
+    $stmt = $pdo->prepare(
+        "SELECT ai.*, u.email as created_by_email 
+         FROM admin_invites ai
+         LEFT JOIN users u ON ai.created_by = u.id
+         ORDER BY ai.created_at DESC"
+    );
+    $stmt->execute();
+    $invites = $stmt->fetchAll();
+
+    $flashes = flash_get_all();
+    $lastInviteLink = $_SESSION['last_invite_link'] ?? null;
+    unset($_SESSION['last_invite_link']);
+
 ?>
 
 <div class="card">
@@ -101,16 +108,13 @@ unset($_SESSION['last_invite_link']);
             <button onclick="navigator.clipboard.writeText('<?= addslashes($lastInviteLink) ?>'); alert('Lien copié dans le presse-papiers !');" class="btn" style="background: #4CAF50; margin-top: 0.5rem; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">
                 📋 Copier le lien
             </button>
-            <p style="margin-top: 1rem; margin-bottom: 0; font-size: 0.9rem; color: #558b2f;">
-                📧 Partage ce lien avec la personne qui doit créer son compte.
-            </p>
         </div>
     <?php endif; ?>
 
-    <h2 style="margin-top: 2rem;">Invitations actives (<?= count($invites) ?>)</h2>
+    <h2 style="margin-top: 2rem;">Invitations générées (<?= count($invites) ?>)</h2>
     
     <?php if (empty($invites)): ?>
-        <p style="color: #666; background: #f5f5f5; padding: 1rem; border-radius: 4px;">Aucune invitation active actuellement.</p>
+        <p style="color: #666; background: #f5f5f5; padding: 1rem; border-radius: 4px;">Aucune invitation pour le moment.</p>
     <?php else: ?>
         <div style="overflow-x: auto;">
             <table border="1" style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
@@ -119,8 +123,7 @@ unset($_SESSION['last_invite_link']);
                         <th style="padding: 0.7rem; text-align: left;">Créée par</th>
                         <th style="padding: 0.7rem; text-align: left;">Rôle visé</th>
                         <th style="padding: 0.7rem; text-align: left;">Créée le</th>
-                        <th style="padding: 0.7rem; text-align: left;">Expire le</th>
-                        <th style="padding: 0.7rem; text-align: left;">Token</th>
+                        <th style="padding: 0.7rem; text-align: left;">Statut</th>
                         <th style="padding: 0.7rem; text-align: left;">Action</th>
                     </tr>
                 </thead>
@@ -129,10 +132,11 @@ unset($_SESSION['last_invite_link']);
                         $createdAt = new DateTime($invite['created_at']);
                         $expiresAt = new DateTime($invite['expires_at']);
                         $now = new DateTime();
-                        $remaining = $expiresAt->diff($now);
+                        $isExpired = $expiresAt < $now;
+                        $isUsed = (int)$invite['used'] === 1;
                     ?>
-                        <tr style="border-bottom: 1px solid #ddd;">
-                            <td style="padding: 0.7rem;">
+                        <tr style="border-bottom: 1px solid #ddd; background: <?= $isUsed ? '#f9f9f9' : 'white' ?>;">
+                            <td style="padding: 0.7rem; color: <?= $isUsed ? '#999' : '#333' ?>;">
                                 <strong><?= e($invite['created_by_email'] ?? 'Système') ?></strong>
                             </td>
                             <td style="padding: 0.7rem;">
@@ -140,28 +144,18 @@ unset($_SESSION['last_invite_link']);
                                     <?= e(strtoupper($invite['role'] ?? 'admin')) ?>
                                 </span>
                             </td>
-                            <td style="padding: 0.7rem; font-size: 0.9rem;">
+                            <td style="padding: 0.7rem; font-size: 0.9rem; color: <?= $isUsed ? '#999' : '#333' ?>;">
                                 <?= date('d/m/Y H:i', strtotime($invite['created_at'])) ?>
                             </td>
                             <td style="padding: 0.7rem; font-size: 0.9rem;">
-                                <strong><?= date('d/m/Y H:i', strtotime($invite['expires_at'])) ?></strong>
-                                <br>
-                                <span style="color: <?= $remaining->invert === 1 || ($remaining->h === 0 && $remaining->i === 0) ? '#f44336' : '#666' ?>; font-size: 0.8rem;">
-                                    <?php
-                                    if ($expiresAt < $now) {
-                                        echo "Expiré";
-                                    } elseif ($remaining->d > 0) {
-                                        echo "Expire dans " . $remaining->d . "j " . $remaining->h . "h";
-                                    } else {
-                                        echo "Expire dans " . $remaining->h . "h " . $remaining->i . "m";
-                                    }
-                                    ?>
-                                </span>
-                            </td>
-                            <td style="padding: 0.7rem;">
-                                <code style="font-size: 0.8rem; background: #f0f0f0; padding: 3px 6px; border-radius: 3px; word-break: break-all;">
-                                    <?= e(substr($invite['token'], 0, 16)) ?>...
-                                </code>
+                                <?php if ($isUsed): ?>
+                                    <span style="color: #4CAF50; font-weight: bold;">✅ Utilisé par <?= e($invite['used_by_email'] ?? '?') ?></span>
+                                <?php elseif ($isExpired): ?>
+                                    <span style="color: #f44336; font-weight: bold;">❌ Expiré</span>
+                                <?php else: ?>
+                                    <span style="color: #ff9800; font-weight: bold;">⏳ En attente</span><br>
+                                    <span style="font-size: 0.8rem; color: #666;">Expire le <?= date('d/m/Y H:i', strtotime($invite['expires_at'])) ?></span>
+                                <?php endif; ?>
                             </td>
                             <td style="padding: 0.7rem;">
                                 <form method="post" style="display: inline;">
@@ -183,4 +177,19 @@ unset($_SESSION['last_invite_link']);
     </div>
 </div>
 
-<?php require __DIR__ . '/../_footer.php'; ?>
+<?php 
+} catch (\Throwable $e) {
+    // AFFICHAGE DE L'ERREUR POUR DÉBOGUER !
+    echo "<div class='card' style='max-width: 600px; margin: 4rem auto; border-top: 4px solid #f44336; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>";
+    echo "<h1 style='color: #d32f2f;'>🚨 Erreur Serveur Détectée</h1>";
+    echo "<p>La page a rencontré un problème qui l'empêche de s'afficher. Voici les détails techniques :</p>";
+    echo "<div style='background: #ffebee; padding: 1rem; border-radius: 4px; border: 1px solid #ffcdd2; color: #c62828; margin-bottom: 1rem; font-family: monospace; word-break: break-all;'>";
+    echo "<strong>Message :</strong> " . e($e->getMessage()) . "<br><br>";
+    echo "<strong>Fichier :</strong> " . e($e->getFile()) . " (Ligne " . $e->getLine() . ")";
+    echo "</div>";
+    echo "<a href='/admin/index.php' class='btn' style='background: #2196F3; color: white; text-decoration: none;'>Retourner à l'accueil admin</a>";
+    echo "</div>";
+}
+
+require __DIR__ . '/../_footer.php'; 
+?>
