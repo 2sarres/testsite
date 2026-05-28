@@ -77,7 +77,6 @@ function require_admin(): array
 {
     $u = require_login();
     // Les éditeurs et les admins peuvent accéder à l'interface globale.
-    // Les restrictions spécifiques (ex: gestion utilisateurs) se font sur les pages concernées.
     if (!in_array($u['role'] ?? '', ['admin', 'editor'])) {
         http_response_code(403); echo "Accès refusé. Rôle non autorisé."; exit;
     }
@@ -106,7 +105,7 @@ function db_install(PDO $pdo): void
         )"
     );
 
-    // MIGRATION SÉCURISÉE : Ajout des colonnes de récupération de mot de passe et profil
+    // MIGRATION SÉCURISÉE
     try { $pdo->query("SELECT first_name FROM users LIMIT 1"); } catch (\Throwable $e) {
         try { $pdo->exec("ALTER TABLE users ADD COLUMN first_name TEXT DEFAULT ''"); } catch (\Throwable $ex) {}
     }
@@ -167,6 +166,10 @@ function db_install(PDO $pdo): void
             FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
         )"
     );
+
+    try { $pdo->query("SELECT role FROM admin_invites LIMIT 1"); } catch (\Throwable $e) {
+        try { $pdo->exec("ALTER TABLE admin_invites ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'"); } catch (\Throwable $ex) {}
+    }
 
     if ((int)$pdo->query("SELECT COUNT(*) FROM categories")->fetchColumn() === 0) {
         categories_seed_defaults($pdo);
@@ -294,10 +297,42 @@ function card_excerpt_preview(string $excerpt, string $contentHtml): string
     return $t;
 }
 
+function has_any_user(PDO $pdo): bool
+{
+    $stmt = $pdo->query("SELECT COUNT(*) AS c FROM users");
+    $row = $stmt->fetch();
+    return ((int)($row['c'] ?? 0)) > 0;
+}
+
+function create_user(PDO $pdo, string $email, string $password, string $role = 'editor', string $firstName = '', string $lastName = ''): int
+{
+    $stmt = $pdo->prepare(
+        "INSERT INTO users(email, password_hash, role, first_name, last_name, created_at)
+         VALUES(:email, :password_hash, :role, :first_name, :last_name, :created_at)"
+    );
+    $stmt->execute([
+        ':email' => mb_strtolower(trim($email), 'UTF-8'),
+        ':password_hash' => password_hash_secure($password),
+        ':role' => $role,
+        ':first_name' => trim($firstName),
+        ':last_name' => trim($lastName),
+        ':created_at' => date('c'),
+    ]);
+    return (int)$pdo->lastInsertId();
+}
+
 function get_user_by_email(PDO $pdo, string $email): ?array
 {
     $stmt = $pdo->prepare("SELECT * FROM users WHERE email = :email LIMIT 1");
     $stmt->execute([':email' => mb_strtolower(trim($email), 'UTF-8')]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function get_user_by_id(PDO $pdo, int $id): ?array
+{
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $id]);
     $row = $stmt->fetch();
     return $row ?: null;
 }
@@ -349,7 +384,6 @@ function update_password_with_token(PDO $pdo, string $token, string $newPassword
 // ==== GESTION DES EMAILS ADMIN =====
 function get_all_admin_emails(PDO $pdo): array
 {
-    // On ne récupère que les emails des administrateurs actifs
     $stmt = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND COALESCE(is_active, 1) = 1");
     return $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
 }
@@ -393,4 +427,113 @@ function validate_uploaded_image(array $file): ?string
     $name = date('Ymd_His') . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
     return $name;
 }
+
+function upload_error_message(int $errorCode): string
+{
+    if ($errorCode === UPLOAD_ERR_INI_SIZE || $errorCode === UPLOAD_ERR_FORM_SIZE) return "Image trop volumineuse (max 10 Mo).";
+    if ($errorCode === UPLOAD_ERR_PARTIAL) return "Upload interrompu, reessaie.";
+    if ($errorCode === UPLOAD_ERR_NO_FILE) return "Aucun fichier envoye.";
+    if ($errorCode === UPLOAD_ERR_NO_TMP_DIR || $errorCode === UPLOAD_ERR_CANT_WRITE || $errorCode === UPLOAD_ERR_EXTENSION) return "Erreur serveur pendant l'upload.";
+    return "Image invalide. Formats acceptes: JPG, PNG, GIF, WEBP.";
+}
+
+function process_base64_upload(string $base64Data): ?string
+{
+    if (preg_match('/^data:image\/(\w+);base64,/', $base64Data, $type)) {
+        $data = substr($base64Data, strpos($base64Data, ',') + 1);
+        $type = strtolower($type[1]);
+        $data = base64_decode($data);
+        if ($data !== false) {
+            $ext = $type === 'jpeg' ? 'jpg' : $type;
+            $filename = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '_crop.' . $ext;
+            $target = dirname(__DIR__) . '/public/uploads/' . $filename;
+            file_put_contents($target, $data);
+            return '/uploads/' . $filename;
+        }
+    }
+    return null;
+}
+
+// ===== FONCTIONS POUR LES INVITATIONS (ADMIN OU ÉDITEUR) =====
+
+function create_invite(PDO $pdo, int $createdBy, string $role = 'admin', int $durationMinutes = 60): string
+{
+    $token = bin2hex(random_bytes(32));
+    $expiresAt = date('c', time() + ($durationMinutes * 60));
+    
+    $stmt = $pdo->prepare(
+        "INSERT INTO admin_invites (token, created_by, role, created_at, expires_at)
+         VALUES (:token, :created_by, :role, :created_at, :expires_at)"
+    );
+    $stmt->execute([
+        ':token' => $token,
+        ':created_by' => $createdBy,
+        ':role' => $role,
+        ':created_at' => date('c'),
+        ':expires_at' => $expiresAt,
+    ]);
+    
+    return $token;
+}
+
+function get_invite_by_token(PDO $pdo, string $token): ?array
+{
+    $stmt = $pdo->prepare(
+        "SELECT * FROM admin_invites WHERE token = :token AND used = 0 AND expires_at > datetime('now') LIMIT 1"
+    );
+    $stmt->execute([':token' => $token]);
+    return $stmt->fetch() ?: null;
+}
+
+function mark_invite_used(PDO $pdo, int $inviteId, string $email): void
+{
+    $stmt = $pdo->prepare(
+        "UPDATE admin_invites SET used = 1, used_at = :used_at, used_by_email = :email WHERE id = :id"
+    );
+    $stmt->execute([
+        ':used_at' => date('c'),
+        ':email' => $email,
+        ':id' => $inviteId,
+    ]);
+}
+
+function get_invites_by_role(PDO $pdo, string $role, bool $activeOnly = true): array
+{
+    if ($activeOnly) {
+        $stmt = $pdo->prepare(
+            "SELECT ai.*, u.email as created_by_email 
+             FROM admin_invites ai
+             LEFT JOIN users u ON ai.created_by = u.id
+             WHERE ai.role = :role AND ai.used = 0 AND ai.expires_at > datetime('now')
+             ORDER BY ai.created_at DESC"
+        );
+    } else {
+        $stmt = $pdo->prepare(
+            "SELECT ai.*, u.email as created_by_email 
+             FROM admin_invites ai
+             LEFT JOIN users u ON ai.created_by = u.id
+             WHERE ai.role = :role
+             ORDER BY ai.created_at DESC"
+        );
+    }
+    $stmt->execute([':role' => $role]);
+    return $stmt->fetchAll();
+}
+
+function delete_invite(PDO $pdo, int $inviteId): void
+{
+    $stmt = $pdo->prepare("DELETE FROM admin_invites WHERE id = :id");
+    $stmt->execute([':id' => $inviteId]);
+}
+
+function get_admin_invites(PDO $pdo, bool $activeOnly = true): array
+{
+    return get_invites_by_role($pdo, 'admin', $activeOnly);
+}
+
+function create_admin_invite(PDO $pdo, int $createdBy, int $durationMinutes = 60): string
+{
+    return create_invite($pdo, $createdBy, 'admin', $durationMinutes);
+}
+
 ?>
