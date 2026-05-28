@@ -134,12 +134,13 @@ function db_install(PDO $pdo): void
         )"
     );
 
-    // Table pour les invitations admin
+    // Table pour les invitations (admin ou éditeur)
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS admin_invites (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             token TEXT NOT NULL UNIQUE,
             created_by INTEGER NOT NULL,
+            role TEXT NOT NULL DEFAULT 'admin',
             created_at TEXT NOT NULL,
             expires_at TEXT NOT NULL,
             used INTEGER NOT NULL DEFAULT 0,
@@ -246,7 +247,6 @@ function make_unique_category_slug(PDO $pdo, string $title, ?int $excludeId = nu
     }
 }
 
-// === LA FONCTION MANQUANTE EST ICI ===
 function next_article_sort_order(PDO $pdo, int $categoryId): int
 {
     $stmt = $pdo->prepare('SELECT COALESCE(MAX(sort_order), 0) FROM articles WHERE category_id = :cid');
@@ -255,7 +255,6 @@ function next_article_sort_order(PDO $pdo, int $categoryId): int
     return $max + 10;
 }
 
-// === L'AUTRE FONCTION MANQUANTE EST ICI ===
 function articles_count_in_category(PDO $pdo, int $categoryId): int
 {
     $stmt = $pdo->prepare('SELECT COUNT(*) FROM articles WHERE category_id = :cid');
@@ -396,20 +395,21 @@ function process_base64_upload(string $base64Data): ?string
     return null;
 }
 
-// ===== FONCTIONS POUR LES INVITATIONS ADMIN =====
+// ===== FONCTIONS POUR LES INVITATIONS (ADMIN OU ÉDITEUR) =====
 
-function create_admin_invite(PDO $pdo, int $createdBy, int $durationMinutes = 60): string
+function create_invite(PDO $pdo, int $createdBy, string $role = 'admin', int $durationMinutes = 60): string
 {
     $token = bin2hex(random_bytes(32));
     $expiresAt = date('c', time() + ($durationMinutes * 60));
     
     $stmt = $pdo->prepare(
-        "INSERT INTO admin_invites (token, created_by, created_at, expires_at)
-         VALUES (:token, :created_by, :created_at, :expires_at)"
+        "INSERT INTO admin_invites (token, created_by, role, created_at, expires_at)
+         VALUES (:token, :created_by, :role, :created_at, :expires_at)"
     );
     $stmt->execute([
         ':token' => $token,
         ':created_by' => $createdBy,
+        ':role' => $role,
         ':created_at' => date('c'),
         ':expires_at' => $expiresAt,
     ]);
@@ -438,14 +438,14 @@ function mark_invite_used(PDO $pdo, int $inviteId, string $email): void
     ]);
 }
 
-function get_admin_invites(PDO $pdo, bool $activeOnly = true): array
+function get_invites_by_role(PDO $pdo, string $role, bool $activeOnly = true): array
 {
     if ($activeOnly) {
         $stmt = $pdo->prepare(
             "SELECT ai.*, u.email as created_by_email 
              FROM admin_invites ai
              LEFT JOIN users u ON ai.created_by = u.id
-             WHERE ai.used = 0 AND ai.expires_at > datetime('now')
+             WHERE ai.role = :role AND ai.used = 0 AND ai.expires_at > datetime('now')
              ORDER BY ai.created_at DESC"
         );
     } else {
@@ -453,14 +453,28 @@ function get_admin_invites(PDO $pdo, bool $activeOnly = true): array
             "SELECT ai.*, u.email as created_by_email 
              FROM admin_invites ai
              LEFT JOIN users u ON ai.created_by = u.id
+             WHERE ai.role = :role
              ORDER BY ai.created_at DESC"
         );
     }
-    return $stmt->execute() ? $stmt->fetchAll() : [];
+    $stmt->execute([':role' => $role]);
+    return $stmt->fetchAll();
 }
 
 function delete_invite(PDO $pdo, int $inviteId): void
 {
     $stmt = $pdo->prepare("DELETE FROM admin_invites WHERE id = :id");
     $stmt->execute([':id' => $inviteId]);
+}
+
+// Fonction héritée pour compatibilité
+function get_admin_invites(PDO $pdo, bool $activeOnly = true): array
+{
+    return get_invites_by_role($pdo, 'admin', $activeOnly);
+}
+
+// Fonction héritée pour compatibilité
+function create_admin_invite(PDO $pdo, int $createdBy, int $durationMinutes = 60): string
+{
+    return create_invite($pdo, $createdBy, 'admin', $durationMinutes);
 }
