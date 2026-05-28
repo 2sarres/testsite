@@ -6,6 +6,14 @@ require_once __DIR__ . '/../_header.php';
 db_install($pdo);
 $user = require_admin();
 
+// Restriction stricte de la gestion des utilisateurs aux seuls administrateurs
+if (($user['role'] ?? 'admin') !== 'admin') {
+    http_response_code(403);
+    echo '<div class="card"><h1>Accès interdit</h1><p>Seuls les administrateurs peuvent accéder à la gestion des utilisateurs.</p></div>';
+    require __DIR__ . '/../_footer.php';
+    exit;
+}
+
 $errors = [];
 $deleted = false;
 
@@ -53,7 +61,7 @@ $flashes = flash_get_all();
     <?php endforeach; ?>
     
     <div style="margin-bottom: 2rem; display: flex; gap: 1rem; flex-wrap: wrap;">
-        <a href="/admin/invites.php" class="btn" style="background: #4CAF50;">+ Générer une invitation admin</a>
+        <a href="/admin/invites.php" class="btn" style="background: #4CAF50;">+ Générer une invitation</a>
         <a href="/admin/index.php" class="btn" style="background: #2196F3;">← Retour au tableau de bord</a>
     </div>
     

@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-$pageTitle = 'Inscription Admin';
+$pageTitle = 'Inscription';
 require_once __DIR__ . '/_header.php';
 
 db_install($pdo);
@@ -55,16 +55,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Les mots de passe ne correspondent pas.';
     }
     
-    // Si pas d'erreurs, créer l'admin
+    // Si pas d'erreurs, créer le compte avec le rôle de l'invitation
     if (!$errors) {
         $pdo->beginTransaction();
         try {
-            create_user($pdo, $email, $password, 'admin');
+            $assignedRole = $invite['role'] ?? 'admin';
+            
+            create_user($pdo, $email, $password, $assignedRole);
             mark_invite_used($pdo, (int)$invite['id'], $email);
             $pdo->commit();
             
             $success = true;
-            flash_set('success', 'Compte admin créé avec succès ! Connecte-toi maintenant.');
+            flash_set('success', 'Compte créé avec succès ! Connecte-toi maintenant.');
         } catch (Exception $e) {
             $pdo->rollBack();
             $errors[] = 'Erreur lors de la création du compte.';
@@ -76,7 +78,7 @@ $flashes = flash_get_all();
 ?>
 
 <div class="card" style="max-width: 500px; margin: 2rem auto;">
-    <h1 style="text-align: center;">Création d'un compte administrateur</h1>
+    <h1 style="text-align: center;">Création de compte</h1>
     
     <?php foreach ($flashes as $flash): ?>
         <div class="flash <?= e($flash['type']) ?>">
@@ -93,7 +95,7 @@ $flashes = flash_get_all();
     <?php if ($success): ?>
         <div style="background: #e8f5e9; padding: 2rem; border-radius: 4px; text-align: center; margin: 2rem 0; border-left: 4px solid #4CAF50;">
             <h2 style="color: #2e7d32; margin-top: 0;">✓ Succès !</h2>
-            <p style="margin: 1rem 0; color: #558b2f;">Ton compte administrateur a été créé avec succès.</p>
+            <p style="margin: 1rem 0; color: #558b2f;">Ton compte a été créé avec succès.</p>
             <a href="/login.php" class="btn" style="background: #4CAF50; margin-top: 1rem;">🔐 Se connecter</a>
         </div>
     <?php else: ?>
@@ -110,7 +112,7 @@ $flashes = flash_get_all();
             <label for="password2" style="margin-top: 1rem;">Confirmer le mot de passe</label>
             <input type="password" id="password2" name="password2" required minlength="10" style="width: 100%; padding: 0.7rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
             
-            <button class="btn" type="submit" style="background: #4CAF50; color: white; width: 100%; margin-top: 1.5rem; padding: 0.8rem; font-size: 1rem;">✓ Créer le compte administrateur</button>
+            <button class="btn" type="submit" style="background: #4CAF50; color: white; width: 100%; margin-top: 1.5rem; padding: 0.8rem; font-size: 1rem;">✓ Créer le compte</button>
         </form>
     <?php endif; ?>
 </div>

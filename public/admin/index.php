@@ -3,6 +3,12 @@ declare(strict_types=1);
 $pageTitle = 'Admin';
 require_once dirname(__DIR__) . '/_header.php';
 $user = require_admin();
+
+// Un éditeur ne peut pas accéder au tableau de bord général d'administration
+if (($user['role'] ?? 'admin') === 'editor') {
+    redirect('/admin/article-new.php');
+}
+
 db_install($pdo);
 
 $rows = $pdo->query(
@@ -19,6 +25,7 @@ $rows = $pdo->query(
   <div class="top-actions">
     <a class="btn" href="/admin/article-new.php">Nouvel article</a>
     <a class="btn secondary" href="/admin/categories.php">Catégories & ordre</a>
+    <a class="btn secondary" href="/admin/users.php" style="background: #2196F3; color: white;">👥 Gestion des utilisateurs</a>
     <a class="btn secondary" href="/">Voir le site</a>
   </div>
 </div>
@@ -45,4 +52,3 @@ $rows = $pdo->query(
 </div>
 
 <?php require dirname(__DIR__) . '/_footer.php'; ?>
-

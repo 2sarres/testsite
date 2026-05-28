@@ -1,10 +1,18 @@
 <?php
 declare(strict_types=1);
-$pageTitle = 'Générer une invitation admin';
+$pageTitle = 'Générer une invitation';
 require_once __DIR__ . '/../_header.php';
 
 db_install($pdo);
 $user = require_admin();
+
+// Restriction aux seuls administrateurs
+if (($user['role'] ?? 'admin') !== 'admin') {
+    http_response_code(403);
+    echo '<div class="card"><h1>Accès interdit</h1><p>Seuls les administrateurs peuvent générer des invitations.</p></div>';
+    require __DIR__ . '/../_footer.php';
+    exit;
+}
 
 // Traiter la suppression d'une invitation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_invite'])) {
@@ -22,12 +30,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_invite'])) {
     $duration = (int)($_POST['duration'] ?? 60);
     $duration = max(10, min(1440, $duration)); // Entre 10 et 1440 minutes
     
+    $role = trim($_POST['role'] ?? 'admin');
+    if (!in_array($role, ['admin', 'editor'], true)) {
+        $role = 'admin';
+    }
+    
     $token = create_admin_invite($pdo, (int)$user['id'], $duration);
+    
+    // Assignation du rôle à l'invitation dans la base de données
+    $stmt = $pdo->prepare("UPDATE admin_invitations SET role = ? WHERE token = ?");
+    $stmt->execute([$role, $token]);
     
     $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . $_SERVER['HTTP_HOST'];
     $inviteLink = $baseUrl . '/register-admin.php?token=' . $token;
     
-    flash_set('success', "Invitation générée avec succès ! Elle expire dans $duration minutes.");
+    flash_set('success', "Invitation (" . strtoupper($role) . ") générée avec succès ! Elle expire dans $duration minutes.");
     $_SESSION['last_invite_link'] = $inviteLink;
     redirect('/admin/invites.php');
 }
@@ -40,7 +57,7 @@ unset($_SESSION['last_invite_link']);
 ?>
 
 <div class="card">
-    <h1>Générer une invitation admin</h1>
+    <h1>Générer une invitation</h1>
     
     <?php foreach ($flashes as $flash): ?>
         <div class="flash <?= e($flash['type']) ?>">
@@ -50,6 +67,12 @@ unset($_SESSION['last_invite_link']);
 
     <form method="post" style="margin-bottom: 2rem; background: #f9f9f9; padding: 1rem; border-radius: 4px;">
         <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+        
+        <label for="role">Rôle à attribuer</label>
+        <select id="role" name="role" required style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; margin-bottom: 1rem;">
+            <option value="admin">Administrateur (Accès complet)</option>
+            <option value="editor">Éditeur (Création d'articles uniquement)</option>
+        </select>
         
         <label for="duration">Durée de validité (minutes)</label>
         <input type="number" id="duration" name="duration" value="60" min="10" max="1440" required style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
@@ -68,7 +91,7 @@ unset($_SESSION['last_invite_link']);
                 📋 Copier le lien
             </button>
             <p style="margin-top: 1rem; margin-bottom: 0; font-size: 0.9rem; color: #558b2f;">
-                📧 Partage ce lien avec la personne qui doit créer son compte administrateur.
+                📧 Partage ce lien avec la personne qui doit créer son compte.
             </p>
         </div>
     <?php endif; ?>
@@ -83,6 +106,7 @@ unset($_SESSION['last_invite_link']);
                 <thead>
                     <tr style="background: #f5f5f5;">
                         <th style="padding: 0.7rem; text-align: left;">Créée par</th>
+                        <th style="padding: 0.7rem; text-align: left;">Rôle visé</th>
                         <th style="padding: 0.7rem; text-align: left;">Créée le</th>
                         <th style="padding: 0.7rem; text-align: left;">Expire le</th>
                         <th style="padding: 0.7rem; text-align: left;">Token</th>
@@ -99,6 +123,11 @@ unset($_SESSION['last_invite_link']);
                         <tr style="border-bottom: 1px solid #ddd;">
                             <td style="padding: 0.7rem;">
                                 <strong><?= e($invite['created_by_email'] ?? 'Système') ?></strong>
+                            </td>
+                            <td style="padding: 0.7rem;">
+                                <span style="background: <?= ($invite['role'] ?? 'admin') === 'admin' ? '#4CAF50' : '#2196F3' ?>; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8rem; font-weight: bold;">
+                                    <?= e(strtoupper($invite['role'] ?? 'admin')) ?>
+                                </span>
                             </td>
                             <td style="padding: 0.7rem; font-size: 0.9rem;">
                                 <?= date('d/m/Y H:i', strtotime($invite['created_at'])) ?>
