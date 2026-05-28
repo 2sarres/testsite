@@ -29,6 +29,8 @@ if ($displayName === '') {
     <a class="btn" href="/admin/article-new.php">Nouvel article</a>
     <a class="btn secondary" href="/admin/categories.php">Catégories & ordre</a>
     
+    <a class="btn secondary" href="/admin/profile.php" style="background: #9c27b0; color: white;">⚙️ Mon Profil</a>
+    
     <?php if (($user['role'] ?? 'editor') === 'admin'): ?>
       <a class="btn secondary" href="/admin/users.php" style="background: #2196F3; color: white;">👥 Gestion des utilisateurs</a>
     <?php endif; ?>
