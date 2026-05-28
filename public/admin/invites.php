@@ -71,6 +71,9 @@ try {
     $flashes = flash_get_all();
     $lastInviteLink = $_SESSION['last_invite_link'] ?? null;
     unset($_SESSION['last_invite_link']);
+    
+    // Définir l'URL de base pour la création dynamique des liens de copie
+    $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . $_SERVER['HTTP_HOST'];
 
 ?>
 
@@ -158,7 +161,15 @@ try {
                                 <?php endif; ?>
                             </td>
                             <td style="padding: 0.7rem;">
-                                <form method="post" style="display: inline;">
+                                
+                                <?php if (!$isUsed && !$isExpired): ?>
+                                    <?php $currentInviteLink = $baseUrl . '/register-admin.php?token=' . $invite['token']; ?>
+                                    <button type="button" onclick="navigator.clipboard.writeText('<?= addslashes($currentInviteLink) ?>'); alert('Lien copié dans le presse-papiers !');" class="btn" style="background: #2196F3; color: white; padding: 0.4rem 0.8rem; font-size: 0.9rem; border: none; border-radius: 4px; cursor: pointer; margin-right: 0.5rem; margin-bottom: 0.5rem; display: inline-block;">
+                                        📋 Copier
+                                    </button>
+                                <?php endif; ?>
+                                
+                                <form method="post" style="display: inline-block;">
                                     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
                                     <input type="hidden" name="delete_invite" value="<?= (int)$invite['id'] ?>">
                                     <button type="submit" class="btn" style="background: #f44336; color: white; padding: 0.4rem 0.8rem; font-size: 0.9rem; border: none; border-radius: 4px; cursor: pointer;" onclick="return confirm('Supprimer cette invitation ?')">Supprimer</button>
@@ -179,7 +190,6 @@ try {
 
 <?php 
 } catch (\Throwable $e) {
-    // AFFICHAGE DE L'ERREUR POUR DÉBOGUER !
     echo "<div class='card' style='max-width: 600px; margin: 4rem auto; border-top: 4px solid #f44336; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>";
     echo "<h1 style='color: #d32f2f;'>🚨 Erreur Serveur Détectée</h1>";
     echo "<p>La page a rencontré un problème qui l'empêche de s'afficher. Voici les détails techniques :</p>";
