@@ -48,6 +48,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_setting($pdo, 'home_banner_1', trim((string)$_POST['home_banner_1']));
         $uploadMessage .= 'Bannière (URL) enregistrée. ';
     }
+
+    // Gestion de la case à cocher pour l'activation/désactivation de la bannière
+    $bannerActive = isset($_POST['home_banner_1_active']) ? '1' : '0';
+    set_setting($pdo, 'home_banner_1_active', $bannerActive);
     
     if ($uploadMessage) {
         flash_set('success', trim($uploadMessage));
@@ -58,8 +62,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('/admin/settings-home.php');
 }
 
-$heroJetSrc = get_setting($pdo, 'home_hero_jet', '/assets/images/hero-jet.png');
-$banner1    = get_setting($pdo, 'home_banner_1', 'https://picsum.photos/1600/600?random=90');
+$heroJetSrc    = get_setting($pdo, 'home_hero_jet', '/assets/images/hero-jet.png');
+$banner1       = get_setting($pdo, 'home_banner_1', 'https://picsum.photos/1600/600?random=90');
+$banner1Active = get_setting($pdo, 'home_banner_1_active', '1'); // Actif par défaut ('1')
 ?>
 
 <div class="card">
@@ -95,6 +100,13 @@ $banner1    = get_setting($pdo, 'home_banner_1', 'https://picsum.photos/1600/600
 
     <h2>Bannière intermédiaire</h2>
     
+    <div style="margin-bottom: 20px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" name="home_banner_1_active" value="1" <?= $banner1Active === '1' ? 'checked' : '' ?>>
+            <strong>Afficher cette bannière sur la page d'accueil</strong>
+        </label>
+    </div>
+
     <label>Bannière (Ex: Explore Destinations)</label>
     <div style="display:flex; gap:15px; align-items:flex-start; margin-bottom:20px;">
         <div style="flex-shrink:0;">

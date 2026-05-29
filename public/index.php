@@ -9,8 +9,9 @@ $categories = categories_all_ordered($pdo);
 $isAdmin = ($user && ($user['role'] ?? '') === 'admin');
 
 // Variables administrables
-$heroJetSrc = get_setting($pdo, 'home_hero_jet', '/assets/images/hero-jet.png');
-$banner1    = get_setting($pdo, 'home_banner_1', 'https://picsum.photos/1600/600?random=90');
+$heroJetSrc    = get_setting($pdo, 'home_hero_jet', '/assets/images/hero-jet.png');
+$banner1       = get_setting($pdo, 'home_banner_1', 'https://picsum.photos/1600/600?random=90');
+$banner1Active = get_setting($pdo, 'home_banner_1_active', '1');
 
 // Article mis en avant (sans affichage direct du bloc "À la une")
 $featured = $pdo->query('SELECT a.*, c.label as category_label FROM articles a LEFT JOIN categories c ON c.id = a.category_id WHERE a.published = 1 ORDER BY a.created_at DESC LIMIT 1')->fetch();
@@ -72,7 +73,7 @@ $featured = $pdo->query('SELECT a.*, c.label as category_label FROM articles a L
     </div>
   </section>
 
-  <?php if ($index === 0): ?>
+  <?php if ($index === 0 && $banner1Active === '1'): ?>
     <section class="forbes-banner" style="background-image: url('<?= e($banner1) ?>');">
       <?php if ($isAdmin): ?>
         <a href="/admin/settings-home.php" class="edit-pencil" title="Modifier la bannière">✏️</a>
