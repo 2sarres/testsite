@@ -2,7 +2,7 @@
 <footer class="site-footer">
   <div class="container">
     <div class="site-footer__top">
-      <span class="site-footer__brand">Sky Atlas</span>
+      <span class="site-footer__brand"><?= e($siteNameGlobal) ?></span>
       <nav class="site-footer__nav">
         <a href="/">Accueil</a>
         <a href="/contact.php">Nous contacter</a>
@@ -16,7 +16,7 @@
         <?php endif; ?>
       </div>
     </div>
-    <p class="site-footer__copyright">&copy; <?= date('Y') ?> Sky Atlas. Tous droits réservés.</p>
+    <p class="site-footer__copyright">&copy; <?= date('Y') ?> <?= e($siteNameGlobal) ?>. Tous droits réservés.</p>
   </div>
 </footer>
 </body>
