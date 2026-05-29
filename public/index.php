@@ -8,10 +8,14 @@ db_install($pdo);
 $categories = categories_all_ordered($pdo);
 $isAdmin = ($user && ($user['role'] ?? '') === 'admin');
 
-// Variables administrables
+// Variables administrables (Images, état de bannière et textes du Hero)
 $heroJetSrc    = get_setting($pdo, 'home_hero_jet', '/assets/images/hero-jet.png');
 $banner1       = get_setting($pdo, 'home_banner_1', 'https://picsum.photos/1600/600?random=90');
 $banner1Active = get_setting($pdo, 'home_banner_1_active', '1');
+
+$heroKicker    = get_setting($pdo, 'home_hero_kicker', 'Guides voyages · aviation d’affaires');
+$siteName      = get_setting($pdo, 'site_name', 'Sky Atlas');
+$heroLead      = get_setting($pdo, 'home_hero_lead', 'Avis indépendants sur les destinations, les vols long-courriers et l’excellence des terminaux privés — avec le même sens du détail qu’un carnet de voyage de luxe.');
 
 // Article mis en avant (sans affichage direct du bloc "À la une")
 $featured = $pdo->query('SELECT a.*, c.label as category_label FROM articles a LEFT JOIN categories c ON c.id = a.category_id WHERE a.published = 1 ORDER BY a.created_at DESC LIMIT 1')->fetch();
@@ -20,7 +24,7 @@ $featured = $pdo->query('SELECT a.*, c.label as category_label FROM articles a L
 <section class="ftg-hero" aria-label="En-tête">
   <?php if ($isAdmin): ?>
     <div style="position:fixed; top:20px; right:20px; z-index:1000; display:flex; gap:10px;">
-      <a href="/admin/settings-home.php" class="btn" style="box-shadow: 0 4px 12px rgba(0,0,0,0.3);">✏️ Modifier les images</a>
+      <a href="/admin/settings-home.php" class="btn" style="box-shadow: 0 4px 12px rgba(0,0,0,0.3);">✏️ Modifier l'accueil</a>
       <a href="/admin/index.php" class="btn secondary">Administration</a>
     </div>
   <?php endif; ?>
@@ -28,10 +32,10 @@ $featured = $pdo->query('SELECT a.*, c.label as category_label FROM articles a L
   <div class="ftg-hero__bg" aria-hidden="true"></div>
   <div class="ftg-inner ftg-hero__grid">
     <div class="ftg-hero__copy">
-      <p class="ftg-kicker">Guides voyages · aviation d’affaires</p>
-      <h1 class="ftg-hero__title">Sky Atlas</h1>
+      <p class="ftg-kicker"><?= e($heroKicker) ?></p>
+      <h1 class="ftg-hero__title"><?= e($siteName) ?></h1>
       <p class="ftg-hero__lead">
-        Avis indépendants sur les destinations, les vols long-courriers et l’excellence des terminaux privés — avec le même sens du détail qu’un carnet de voyage de luxe.
+        <?= e($heroLead) ?>
       </p>
     </div>
     <div class="ftg-hero__visual">

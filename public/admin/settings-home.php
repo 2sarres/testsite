@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-$pageTitle = 'Images de l\'accueil';
+$pageTitle = 'Images et textes de l\'accueil';
 require_once dirname(__DIR__) . '/_header.php';
 require_admin();
 db_install($pdo);
@@ -53,6 +53,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $bannerActive = isset($_POST['home_banner_1_active']) ? '1' : '0';
     set_setting($pdo, 'home_banner_1_active', $bannerActive);
     
+    // NOUVEAU : Sauvegarde des textes administrables du Hero
+    set_setting($pdo, 'home_hero_kicker', trim((string)($_POST['home_hero_kicker'] ?? '')));
+    set_setting($pdo, 'site_name', trim((string)($_POST['site_name'] ?? '')));
+    set_setting($pdo, 'home_hero_lead', trim((string)($_POST['home_hero_lead'] ?? '')));
+
     if ($uploadMessage) {
         flash_set('success', trim($uploadMessage));
     } elseif ($uploadError) {
@@ -64,8 +69,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $heroJetSrc    = get_setting($pdo, 'home_hero_jet', '/assets/images/hero-jet.png');
 $banner1       = get_setting($pdo, 'home_banner_1', 'https://picsum.photos/1600/600?random=90');
-$banner1Active = get_setting($pdo, 'home_banner_1_active', '1'); // Actif par défaut
+$banner1Active = get_setting($pdo, 'home_banner_1_active', '1');
 $isBannerActive = ($banner1Active === '1');
+
+// NOUVEAU : Récupération des textes avec leurs valeurs par défaut d'origine
+$heroKicker    = get_setting($pdo, 'home_hero_kicker', 'Guides voyages · aviation d’affaires');
+$siteName      = get_setting($pdo, 'site_name', 'Sky Atlas');
+$heroLead      = get_setting($pdo, 'home_hero_lead', 'Avis indépendants sur les destinations, les vols long-courriers et l’excellence des terminaux privés — avec le même sens du détail qu’un carnet de voyage de luxe.');
 ?>
 
 <style>
@@ -84,10 +94,15 @@ $isBannerActive = ($banner1Active === '1');
 .switch input[type="checkbox"]:checked + .slider:before { transform: translateX(22px) !important; }
 
 .state-text { transition: 0.3s; font-size: 0.95rem; }
+
+/* Styles additionnels pour les champs de texte */
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; font-weight: bold; margin-bottom: 5px; color: #333; }
+.form-group input[type="text"], .form-group textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; font-family: inherit; box-sizing: border-box; }
 </style>
 
 <div class="card">
-  <h1>Modifier les images de l'accueil</h1>
+  <h1>Modifier l'accueil</h1>
   <div class="top-actions" style="margin-bottom: 20px;">
     <a class="btn secondary" href="/">← Retour à l'accueil</a>
   </div>
@@ -95,7 +110,27 @@ $isBannerActive = ($banner1Active === '1');
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
     
-    <h2>En-tête (Avion)</h2>
+    <h2>Textes de l'en-tête (Hero)</h2>
+    
+    <div class="form-group">
+        <label for="home_hero_kicker">Surtitre (Kicker)</label>
+        <input type="text" id="home_hero_kicker" name="home_hero_kicker" value="<?= e($heroKicker) ?>" required>
+    </div>
+
+    <div class="form-group">
+        <label for="site_name">Nom du site (Titre principal / Brand)</label>
+        <input type="text" id="site_name" name="site_name" value="<?= e($siteName) ?>" required>
+        <small style="color:#777;">Remplacera "Sky Atlas" partout sur la page d'accueil.</small>
+    </div>
+
+    <div class="form-group">
+        <label for="home_hero_lead">Texte de description (Lead)</label>
+        <textarea id="home_hero_lead" name="home_hero_lead" rows="4" required><?= e($heroLead) ?></textarea>
+    </div>
+
+    <hr style="margin:30px 0; border:0; border-top:1px solid #eee;">
+
+    <h2>Visuel de l'en-tête (Avion)</h2>
     
     <label>Image de l'avion (Fond transparent PNG conseillé)</label>
     <div style="display:flex; gap:15px; align-items:flex-start; margin-bottom:20px;">
@@ -155,7 +190,6 @@ $isBannerActive = ($banner1Active === '1');
 </div>
 
 <script>
-// Script pour animer les textes "Masquée" et "Affichée" en fonction de l'état du toggle
 document.getElementById('banner-toggle').addEventListener('change', function() {
     const lblOff = document.getElementById('label-banner-off');
     const lblOn = document.getElementById('label-banner-on');
