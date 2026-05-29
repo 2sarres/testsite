@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $uploadMessage .= 'Bannière (URL) enregistrée. ';
     }
 
-    // Gestion de la case à cocher pour l'activation/désactivation de la bannière
+    // Gestion du toggle pour l'activation/désactivation de la bannière
     $bannerActive = isset($_POST['home_banner_1_active']) ? '1' : '0';
     set_setting($pdo, 'home_banner_1_active', $bannerActive);
     
@@ -64,8 +64,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $heroJetSrc    = get_setting($pdo, 'home_hero_jet', '/assets/images/hero-jet.png');
 $banner1       = get_setting($pdo, 'home_banner_1', 'https://picsum.photos/1600/600?random=90');
-$banner1Active = get_setting($pdo, 'home_banner_1_active', '1'); // Actif par défaut ('1')
+$banner1Active = get_setting($pdo, 'home_banner_1_active', '1'); // Actif par défaut
+$isBannerActive = ($banner1Active === '1');
 ?>
+
+<style>
+/* CSS ULTRA-PRIORITAIRE POUR LE SLIDER - VERSION ÉPURÉE */
+.visibility-container { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 1rem 0; margin-top: 1rem; margin-bottom: 1.5rem; border-top: 1px solid #eee; border-bottom: 1px solid #eee; }
+.visibility-label { font-weight: bold; margin: 0; color: #333; font-size: 1.05rem; }
+.switch-wrapper { display: flex; align-items: center; gap: 15px; }
+
+.switch { position: relative !important; display: inline-block !important; width: 50px !important; height: 28px !important; margin: 0 !important; padding: 0 !important; }
+.switch input[type="checkbox"] { opacity: 0 !important; width: 0 !important; height: 0 !important; position: absolute !important; margin: 0 !important; pointer-events: none !important; }
+
+.slider { position: absolute !important; cursor: pointer !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; background-color: #ccc !important; transition: .4s !important; border-radius: 34px !important; display: block !important; border: none !important; margin: 0 !important; padding: 0 !important; }
+.slider:before { position: absolute !important; content: "" !important; height: 20px !important; width: 20px !important; left: 4px !important; bottom: 4px !important; background-color: white !important; transition: .4s !important; border-radius: 50% !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important; margin: 0 !important; }
+
+.switch input[type="checkbox"]:checked + .slider { background-color: #4CAF50 !important; }
+.switch input[type="checkbox"]:checked + .slider:before { transform: translateX(22px) !important; }
+
+.state-text { transition: 0.3s; font-size: 0.95rem; }
+</style>
 
 <div class="card">
   <h1>Modifier les images de l'accueil</h1>
@@ -100,14 +119,19 @@ $banner1Active = get_setting($pdo, 'home_banner_1_active', '1'); // Actif par d�
 
     <h2>Bannière intermédiaire</h2>
     
-    <div style="margin-bottom: 20px;">
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-            <input type="checkbox" name="home_banner_1_active" value="1" <?= $banner1Active === '1' ? 'checked' : '' ?>>
-            <strong>Afficher cette bannière sur la page d'accueil</strong>
-        </label>
+    <div class="visibility-container">
+        <span class="visibility-label">Affichage de la bannière :</span>
+        <div class="switch-wrapper">
+            <span class="state-text" id="label-banner-off" style="<?= !$isBannerActive ? 'font-weight:bold; color:#333;' : 'font-weight:normal; color:#999;' ?>">Masquée</span>
+            <label class="switch">
+                <input type="checkbox" name="home_banner_1_active" value="1" id="banner-toggle" <?= $isBannerActive ? 'checked' : '' ?>>
+                <span class="slider"></span>
+            </label>
+            <span class="state-text" id="label-banner-on" style="<?= $isBannerActive ? 'font-weight:bold; color:#4CAF50;' : 'font-weight:normal; color:#999;' ?>">Affichée</span>
+        </div>
     </div>
 
-    <label>Bannière (Ex: Explore Destinations)</label>
+    <label style="margin-top: 15px; display: block;">Image de la bannière (Ex: Explore Destinations)</label>
     <div style="display:flex; gap:15px; align-items:flex-start; margin-bottom:20px;">
         <div style="flex-shrink:0;">
             <img src="<?= e($banner1) ?>" width="180" style="border-radius:8px; border:1px solid #ccc; object-fit:cover; height:100px;">
@@ -125,9 +149,24 @@ $banner1Active = get_setting($pdo, 'home_banner_1_active', '1'); // Actif par d�
         </div>
     </div>
 
-    <br><br>
-    <button type="submit" class="btn">Enregistrer les images</button>
+    <br>
+    <button type="submit" class="btn">Enregistrer les paramètres</button>
   </form>
 </div>
+
+<script>
+// Script pour animer les textes "Masquée" et "Affichée" en fonction de l'état du toggle
+document.getElementById('banner-toggle').addEventListener('change', function() {
+    const lblOff = document.getElementById('label-banner-off');
+    const lblOn = document.getElementById('label-banner-on');
+    if(this.checked) {
+        lblOff.style.fontWeight = 'normal'; lblOff.style.color = '#999';
+        lblOn.style.fontWeight = 'bold'; lblOn.style.color = '#4CAF50';
+    } else {
+        lblOff.style.fontWeight = 'bold'; lblOff.style.color = '#333';
+        lblOn.style.fontWeight = 'normal'; lblOn.style.color = '#999';
+    }
+});
+</script>
 
 <?php require dirname(__DIR__) . '/_footer.php'; ?>
