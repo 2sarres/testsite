@@ -1,15 +1,15 @@
 <?php
 declare(strict_types=1);
-$pageTitle = 'Modifier la catégorie';
+$pageTitle = 'Edit Category';
 require_once dirname(__DIR__) . '/_header.php';
 require_admin();
 db_install($pdo);
 
 $id = (int)($_GET['id'] ?? 0);
-if ($id <= 0) { flash_set('error', 'Catégorie invalide.'); redirect('/admin/categories.php'); }
+if ($id <= 0) { flash_set('error', 'Invalid category.'); redirect('/admin/categories.php'); }
 
 $cat = category_by_id($pdo, $id);
-if (!$cat) { flash_set('error', 'Catégorie introuvable.'); redirect('/admin/categories.php'); }
+if (!$cat) { flash_set('error', 'Category not found.'); redirect('/admin/categories.php'); }
 
 $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -17,11 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['delete']) && (string)$_POST['delete'] === '1') {
         if (articles_count_in_category($pdo, $id) > 0) {
-            flash_set('error', 'Impossible de supprimer : des articles sont encore dans cette catégorie.');
+            flash_set('error', 'Unable to delete: articles still in this category.');
             redirect('/admin/category-edit.php?id=' . $id);
         }
         $pdo->prepare('DELETE FROM categories WHERE id = :id')->execute([':id' => $id]);
-        flash_set('success', 'Catégorie supprimée.');
+        flash_set('success', 'Category deleted.');
         redirect('/admin/categories.php');
     }
 
@@ -30,23 +30,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dek = trim((string)($_POST['dek'] ?? ''));
     $sortOrder = (int)($_POST['sort_order'] ?? 0);
     $imgType = $_POST['img_type'] ?? 'url';
-    $accentImg = (string)$cat['accent_img']; // Ancien image par défaut
+    $accentImg = (string)$cat['accent_img'];
 
-    if ($label === '') $errors[] = 'Le libellé est obligatoire.';
+    if ($label === '') $errors[] = 'Label is required.';
     $slugBase = $slugManual !== '' ? $slugManual : $label;
-    if (normalize_slug($slugBase) === '') $errors[] = 'Slug invalide.';
+    if (normalize_slug($slugBase) === '') $errors[] = 'Invalid slug.';
 
     if ($imgType === 'upload') {
         $croppedData = trim((string)($_POST['cropped_image'] ?? ''));
         if ($croppedData !== '') {
             $savedPath = process_base64_upload($croppedData);
             if ($savedPath) $accentImg = $savedPath;
-            else $errors[] = "Erreur lors de l'enregistrement de l'image.";
+            else $errors[] = "Error saving image.";
         }
     } else {
         $postedUrl = trim((string)($_POST['accent_img'] ?? ''));
         if ($postedUrl !== '') $accentImg = $postedUrl;
-        if ($accentImg === '') $errors[] = "L'URL de l'image est obligatoire.";
+        if ($accentImg === '') $errors[] = "Image URL is required.";
     }
 
     if (!$errors) {
@@ -54,38 +54,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare('UPDATE categories SET slug = :slug, label = :label, dek = :dek, accent_img = :img, sort_order = :so WHERE id = :id')
             ->execute([':slug' => $newSlug, ':label' => $label, ':dek' => $dek, ':img' => $accentImg, ':so' => $sortOrder, ':id' => $id]);
         $pdo->prepare('UPDATE articles SET category_slug = :s WHERE category_id = :id')->execute([':s' => $newSlug, ':id' => $id]);
-        flash_set('success', 'Catégorie mise à jour.');
+        flash_set('success', 'Category updated.');
         redirect('/admin/category-edit.php?id=' . $id);
     }
 }
 
 $cat = category_by_id($pdo, $id);
 $currentImg = (string)$cat['accent_img'];
-$isUpload = (strpos($currentImg, '/uploads/') === 0); // Détecter si l'image actuelle est un upload local
+$isUpload = (strpos($currentImg, '/uploads/') === 0);
 ?>
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 <div class="card">
-  <h1>Modifier la catégorie</h1>
+  <h1>Edit Category</h1>
   <?php foreach ($errors as $err): ?><div class="flash error"><?= e($err) ?></div><?php endforeach; ?>
   
   <form method="post">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-    <label>Libellé</label>
+    <label>Label</label>
     <input type="text" name="label" required value="<?= e((string)$cat['label']) ?>">
     <label>Slug URL</label>
     <input type="text" name="slug" required value="<?= e((string)$cat['slug']) ?>">
-    <label>Chapô</label>
+    <label>Description</label>
     <textarea name="dek" rows="3"><?= e((string)$cat['dek']) ?></textarea>
     
     <hr style="margin:25px 0; border:0; border-top:1px solid #ddd;">
     
-    <label>Image décorative</label>
+    <label>Decorative Image</label>
     <div style="margin-bottom:15px; display:flex; gap:20px; background:#f9f9f9; padding:10px; border-radius:8px;">
-        <label style="font-weight:normal;"><input type="radio" name="img_type" value="url" <?= !$isUpload ? 'checked' : '' ?> onchange="toggleImg()"> Utiliser une URL</label>
-        <label style="font-weight:normal;"><input type="radio" name="img_type" value="upload" <?= $isUpload ? 'checked' : '' ?> onchange="toggleImg()"> Uploader / Remplacer (Recadrage)</label>
+        <label style="font-weight:normal;"><input type="radio" name="img_type" value="url" <?= !$isUpload ? 'checked' : '' ?> onchange="toggleImg()"> Use a URL</label>
+        <label style="font-weight:normal;"><input type="radio" name="img_type" value="upload" <?= $isUpload ? 'checked' : '' ?> onchange="toggleImg()"> Upload / Replace (Crop)</label>
     </div>
 
     <div id="div-url" style="<?= $isUpload ? 'display:none;' : '' ?>">
@@ -100,41 +100,41 @@ $isUpload = (strpos($currentImg, '/uploads/') === 0); // Détecter si l'image ac
         <input type="hidden" name="cropped_image" id="cropped_image">
         
         <div id="preview-container" style="<?= !$isUpload ? 'display:none;' : 'margin-top:15px;' ?>">
-            <p style="margin:0 0 5px; font-size:0.9rem; color:#666;">Image actuelle / Aperçu :</p>
+            <p style="margin:0 0 5px; font-size:0.9rem; color:#666;">Current Image / Preview:</p>
             <img id="preview-img" src="<?= $isUpload ? e($currentImg) : '' ?>" style="max-width:100%; max-height:250px; border-radius:8px; border:1px solid #ccc;">
         </div>
     </div>
 
     <hr style="margin:25px 0; border:0; border-top:1px solid #ddd;">
 
-    <label>Ordre</label>
+    <label>Order</label>
     <input type="number" name="sort_order" value="<?= (int)$cat['sort_order'] ?>">
     
     <p style="margin-top:20px;">
-      <button class="btn" type="submit">Enregistrer les modifications</button>
-      <a class="btn secondary" href="/admin/categories.php">Retour</a>
+      <button class="btn" type="submit">Save Changes</button>
+      <a class="btn secondary" href="/admin/categories.php">Back</a>
     </p>
   </form>
 </div>
 
 <div class="card" style="margin-top:30px;">
-  <h2>Zone Dangereuse</h2>
-  <form method="post" onsubmit="return confirm('Supprimer définitivement cette catégorie ?');">
+  <h2>Danger Zone</h2>
+  <form method="post" onsubmit="return confirm('Delete this category permanently?');">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
     <input type="hidden" name="delete" value="1">
-    <button class="btn danger" type="submit">Supprimer la catégorie</button>
+    <button class="btn danger" type="submit">Delete Category</button>
   </form>
 </div>
 
 <div id="cropper-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; align-items:center; justify-content:center;">
     <div style="background:#fff; padding:20px; border-radius:12px; width:90%; max-width:800px; display:flex; flex-direction:column;">
-        <h2 style="margin-top:0;">Recadrer l'image</h2>
+        <h2 style="margin-top:0;">Crop Image</h2>
         <div style="width:100%; height:400px; background:#eee; margin-bottom:20px; display:flex; align-items:center; justify-content:center;">
             <img id="image-to-crop" style="max-width:100%; max-height:100%; display:block;">
         </div>
         <div style="text-align:right;">
-            <button type="button" class="btn secondary" onclick="closeCropper()">Annuler</button>
-            <button type="button" class="btn" onclick="applyCrop()">Appliquer le recadrage</button>
+            <button type="button" class="btn secondary" onclick="closeCropper()">Cancel</button>
+            <button type="button" class="btn" onclick="applyCrop()">Apply Crop</button>
         </div>
     </div>
 </div>
